@@ -11,4 +11,4 @@ obj-$(CONFIG_ALLWINNER_A10) += allwinner-a10.o cubieboard.o
 obj-y += stm32.o stm32_flash.o
 obj-y += stm32_rcc.o stm32_gpio.o stm32_uart.o
 obj-y += stm32_afio.o stm32_exti.o
-obj-y += stm32_p103.o
+obj-y += stm32_p103.o stm32_clktree.o
