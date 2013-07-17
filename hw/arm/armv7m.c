@@ -138,17 +138,23 @@ static int bitband_init(SysBusDevice *dev)
     return 0;
 }
 
-static void armv7m_bitband_init(void)
+static void armv7m_bitband_init(Object *parent)
 {
     DeviceState *dev;
 
     dev = qdev_create(NULL, TYPE_BITBAND);
     qdev_prop_set_uint32(dev, "base", 0x20000000);
+    if(parent) {
+        object_property_add_child(parent, "bitband-sram", OBJECT(dev), NULL);
+    }
     qdev_init_nofail(dev);
     sysbus_mmio_map(SYS_BUS_DEVICE(dev), 0, 0x22000000);
 
     dev = qdev_create(NULL, TYPE_BITBAND);
     qdev_prop_set_uint32(dev, "base", 0x40000000);
+    if(parent) {
+        object_property_add_child(parent, "bitband-periph", OBJECT(dev), NULL);
+    }
     qdev_init_nofail(dev);
     sysbus_mmio_map(SYS_BUS_DEVICE(dev), 0, 0x42000000);
 }
@@ -166,7 +172,7 @@ static void armv7m_reset(void *opaque)
    flash_size and sram_size are in kb.
    Returns the NVIC array.  */
 
-qemu_irq *armv7m_init(MemoryRegion *address_space_mem,
+qemu_irq *armv7m_init(Object *parent, MemoryRegion *address_space_mem,
                       int flash_size, int sram_size,
                       const char *kernel_filename, const char *cpu_model)
 {
@@ -217,10 +223,13 @@ qemu_irq *armv7m_init(MemoryRegion *address_space_mem,
     memory_region_init_ram(sram, NULL, "armv7m.sram", sram_size);
     vmstate_register_ram_global(sram);
     memory_region_add_subregion(address_space_mem, 0x20000000, sram);
-    armv7m_bitband_init();
+    armv7m_bitband_init(parent);
 
     nvic = qdev_create(NULL, "armv7m_nvic");
     env->nvic = nvic;
+    if(parent) {
+        object_property_add_child(parent, "nvic", OBJECT(nvic), NULL);
+    }
     qdev_init_nofail(nvic);
     sysbus_connect_irq(SYS_BUS_DEVICE(nvic), 0,
                        qdev_get_gpio_in(DEVICE(cpu), ARM_CPU_IRQ));
