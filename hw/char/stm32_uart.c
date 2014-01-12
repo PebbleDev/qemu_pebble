@@ -81,14 +81,12 @@ struct Stm32Uart {
     stm32_periph_t periph;
     void *stm32_rcc_prop;
     void *stm32_gpio_prop;
-    void *stm32_afio_prop;
 
     /* Private */
     MemoryRegion iomem;
 
     Stm32Rcc *stm32_rcc;
     Stm32Gpio **stm32_gpio;
-    Stm32Afio *stm32_afio;
 
     int uart_index;
 
@@ -127,12 +125,6 @@ struct Stm32Uart {
     struct QEMUTimer *tx_timer;
 
     CharDriverState *chr;
-
-    /* Stores the USART pin mapping used by the board.  This is used to check
-     * the AFIO's USARTx_REMAP register to make sure the software has set
-     * the correct mapping.
-     */
-    uint32_t afio_board_map;
 
     qemu_irq irq;
     int curr_irq_level;
@@ -259,7 +251,7 @@ static void stm32_uart_start_tx(Stm32Uart *s, uint32_t value)
 /* Checks the USART transmit pin's GPIO settings.  If the GPIO is not configured
  * properly, a hardware error is triggered.
  */
-static void stm32_uart_check_tx_pin(Stm32Uart *s)
+/*static void stm32_uart_check_tx_pin(Stm32Uart *s)
 {
     int tx_periph, tx_pin;
     int config;
@@ -331,7 +323,7 @@ static void stm32_uart_check_tx_pin(Stm32Uart *s)
         hw_error("UART TX pin needs to be configured as "
                  "alternate function output");
     }
-}
+}*/
 
 
 
@@ -532,7 +524,7 @@ static void stm32_uart_USART_DR_write(Stm32Uart *s, uint32_t new_value)
                  "was disabled.");
     }
 
-    stm32_uart_check_tx_pin(s);
+//    stm32_uart_check_tx_pin(s);
 
     if(s->USART_SR_TC) {
         /* If the Transmission Complete bit is set, it means the USART is not
@@ -574,9 +566,7 @@ static void stm32_uart_USART_CR1_write(Stm32Uart *s, uint32_t new_value,
         /* Check to make sure the correct mapping is selected when enabling the
          * USART.
          */
-        if(s->afio_board_map != stm32_afio_get_periph_map(s->stm32_afio, s->periph)) {
-            hw_error("Bad AFIO mapping for %s", stm32_periph_name(s->periph));
-        }
+       // TODO: Check the mapping.
     }
 
     s->USART_CR1_TXEIE = extract32(new_value, USART_CR1_TXEIE_BIT, 1);
@@ -714,8 +704,7 @@ static const MemoryRegionOps stm32_uart_ops = {
 
 /* PUBLIC FUNCTIONS */
 
-void stm32_uart_connect(Stm32Uart *s, CharDriverState *chr,
-                        uint32_t afio_board_map)
+void stm32_uart_connect(Stm32Uart *s, CharDriverState *chr)
 {
     s->chr = chr;
     if (chr) {
@@ -726,8 +715,6 @@ void stm32_uart_connect(Stm32Uart *s, CharDriverState *chr,
                 stm32_uart_event,
                 (void *)s);
     }
-
-    s->afio_board_map = afio_board_map;
 }
 
 
@@ -742,7 +729,6 @@ static int stm32_uart_init(SysBusDevice *dev)
 
     s->stm32_rcc = (Stm32Rcc *)s->stm32_rcc_prop;
     s->stm32_gpio = (Stm32Gpio **)s->stm32_gpio_prop;
-    s->stm32_afio = (Stm32Afio *)s->stm32_afio_prop;
 
     memory_region_init_io(&s->iomem, &stm32_uart_ops, s,
                           "uart", 0x03ff);
@@ -769,7 +755,6 @@ static Property stm32_uart_properties[] = {
     DEFINE_PROP_PERIPH_T("periph", Stm32Uart, periph, STM32_PERIPH_UNDEFINED),
     DEFINE_PROP_PTR("stm32_rcc", Stm32Uart, stm32_rcc_prop),
     DEFINE_PROP_PTR("stm32_gpio", Stm32Uart, stm32_gpio_prop),
-    DEFINE_PROP_PTR("stm32_afio", Stm32Uart, stm32_afio_prop),
     DEFINE_PROP_END_OF_LIST()
 };
 

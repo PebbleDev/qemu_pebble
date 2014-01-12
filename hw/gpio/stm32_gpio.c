@@ -24,18 +24,30 @@
 #include "hw/arm/stm32.h"
 #include "qemu/bitops.h"
 
+/* See README for DEBUG details. */
+#define DEBUG_STM32_GPIO
+
+#ifdef DEBUG_STM32_GPIO
+#define DPRINTF(fmt, ...)                                       \
+    do { printf("STM32_GPIO: " fmt, ## __VA_ARGS__); } while (0)
+#else
+#define DPRINTF(fmt, ...)
+#endif
 
 
 
 /* DEFINITIONS*/
 
-#define GPIOx_CRL_OFFSET 0x00
-#define GPIOx_CRH_OFFSET 0x04
-#define GPIOx_IDR_OFFSET 0x08
-#define GPIOx_ODR_OFFSET 0x0c
-#define GPIOx_BSRR_OFFSET 0x10
-#define GPIOx_BRR_OFFSET 0x14
-#define GPIOx_LCKR_OFFSET 0x18
+#define GPIOx_MODER_OFFSET   0x00
+#define GPIOx_OTYPER_OFFSET  0x04
+#define GPIOx_OSPEEDR_OFFSET 0x08
+#define GPIOx_PUPDR_OFFSET   0x0c
+#define GPIOx_IDR_OFFSET     0x10
+#define GPIOx_ODR_OFFSET     0x14
+#define GPIOx_BSRR_OFFSET    0x18
+#define GPIOx_LCKR_OFFSET    0x1c
+#define GPIOx_AFRL_OFFSET    0x20
+#define GPIOx_AFRH_OFFSET    0x24
 
 struct Stm32Gpio {
     /* Inherited */
@@ -50,12 +62,12 @@ struct Stm32Gpio {
 
     Stm32Rcc *stm32_rcc;
 
-
-    uint32_t GPIOx_CRy[2]; /* CRL = 0, CRH = 1 */
+    uint32_t GPIOx_MODER;
     uint32_t GPIOx_ODR;
+    uint32_t GPIOx_AFRL;
+    uint32_t GPIOx_AFRH;
 
     uint16_t in;
-    uint16_t dir_mask; /* input = 0, output = 1 */
 
     /* IRQs used to communicate with the machine implementation.
      * There is one IRQ for each pin.  Note that for pins configured
@@ -100,9 +112,11 @@ static uint8_t stm32_gpio_get_pin_config(Stm32Gpio *s, unsigned pin) {
     /* Simplify extract logic by combining both 32 bit regiters into
      * one 64 bit value.
      */
-    uint64_t cr_64 = ((uint64_t)s->GPIOx_CRy[1] << 32) |
+/*    uint64_t cr_64 = ((uint64_t)s->GPIOx_CRy[1] << 32) |
                       s->GPIOx_CRy[0];
-    return extract64(cr_64, pin * 4, 4);
+    return extract64(cr_64, pin * 4, 4);*/
+    // TODO: Trying to get pin config
+    return 0;
 }
 
 
@@ -110,24 +124,6 @@ static uint8_t stm32_gpio_get_pin_config(Stm32Gpio *s, unsigned pin) {
 
 
 /* REGISTER IMPLEMENTATION */
-
-/* Update the CRL or CRH Configuration Register */
-static void stm32_gpio_update_dir(Stm32Gpio *s, int cr_index)
-{
-    unsigned start_pin, pin, pin_dir;
-
-    assert((cr_index == 0) || (cr_index == 1));
-
-    /* Update the direction mask */
-    start_pin = cr_index * 8;
-    for(pin=start_pin; pin < start_pin + 8; pin++) {
-        pin_dir = stm32_gpio_get_mode_bits(s, pin);
-        /* If the mode is 0, the pin is input.  Otherwise, it
-         * is output.
-         */
-        s->dir_mask |= (pin_dir ? 1 : 0) << pin;
-    }
-}
 
 /* Write the Output Data Register.
  * Propagates the changes to the output IRQs.
@@ -149,7 +145,7 @@ static void stm32_gpio_GPIOx_ODR_write(Stm32Gpio *s, uint32_t new_value)
     changed = old_value ^ new_value;
 
     /* Get changed pins that are outputs - we will not touch input pins */
-    changed_out = changed & s->dir_mask;
+    changed_out = changed & 0xffffff;// & s->dir_mask;
 
     if (changed_out) {
         for (pin = 0; pin < STM32_GPIO_PIN_COUNT; pin++) {
@@ -165,6 +161,28 @@ static void stm32_gpio_GPIOx_ODR_write(Stm32Gpio *s, uint32_t new_value)
     }
 }
 
+static void stm32_gpio_GPIOx_MODER_write(Stm32Gpio *s, uint32_t new_value)
+{
+    uint32_t old_value, mask;
+    uint16_t changed;
+    unsigned pin;
+
+    old_value = s->GPIOx_MODER;
+    /* Get pins that changed value */
+    changed = old_value ^ new_value;
+
+    for (pin = 0; pin < STM32_GPIO_PIN_COUNT; pin++) {
+        // TODO: DO something with the changed values
+        mask = 0xff << pin;
+        if((changed & mask) != 0)
+        {
+            // Mode is changed!
+        }
+        changed += 1;
+    }
+    s->GPIOx_MODER = new_value;
+}
+
 static uint64_t stm32_gpio_read(void *opaque, hwaddr offset,
                           unsigned size)
 {
@@ -173,10 +191,15 @@ static uint64_t stm32_gpio_read(void *opaque, hwaddr offset,
     assert(size == 4);
 
     switch (offset) {
-        case GPIOx_CRL_OFFSET:
-            return s->GPIOx_CRy[0];
-        case GPIOx_CRH_OFFSET:
-            return s->GPIOx_CRy[1];
+        case GPIOx_MODER_OFFSET:
+            return s->GPIOx_MODER;
+        case GPIOx_OTYPER_OFFSET:
+        case GPIOx_OSPEEDR_OFFSET:
+        case GPIOx_PUPDR_OFFSET:
+            /* We ignore writes to these for now as they are not required
+               for emulation, probably */
+            STM32_WARN_WO_REG(offset);
+            return 0;
         case GPIOx_IDR_OFFSET:
             return s->in;
         case GPIOx_ODR_OFFSET:
@@ -184,12 +207,14 @@ static uint64_t stm32_gpio_read(void *opaque, hwaddr offset,
         case GPIOx_BSRR_OFFSET:
             STM32_WARN_WO_REG(offset);
             return 0;
-        case GPIOx_BRR_OFFSET:
-            STM32_WARN_WO_REG(offset);
-            return 0;
         case GPIOx_LCKR_OFFSET:
+            STM32_WARN_WO_REG(offset);
             /* Locking is not yet implemented */
             return 0;
+        case GPIOx_AFRL_OFFSET:
+            return s->GPIOx_AFRL;
+        case GPIOx_AFRH_OFFSET:
+            return s->GPIOx_AFRH;
         default:
             STM32_BAD_REG(offset, size);
             return 0;
@@ -205,15 +230,15 @@ static void stm32_gpio_write(void *opaque, hwaddr offset,
     assert(size == 4);
 
     stm32_rcc_check_periph_clk((Stm32Rcc *)s->stm32_rcc, s->periph);
-
+    DPRINTF("(Periph: %d) Write to 0x%X with value = %" PRIu64 "\n", s->periph, (unsigned int)offset, value);
     switch (offset) {
-        case GPIOx_CRL_OFFSET:
-            s->GPIOx_CRy[0] = value;
-            stm32_gpio_update_dir(s, 0);
+        case GPIOx_MODER_OFFSET:
+            stm32_gpio_GPIOx_MODER_write(s, value);
             break;
-        case GPIOx_CRH_OFFSET:
-            s->GPIOx_CRy[1] = value;
-            stm32_gpio_update_dir(s, 1);
+        case GPIOx_OTYPER_OFFSET:
+        case GPIOx_OSPEEDR_OFFSET:
+        case GPIOx_PUPDR_OFFSET:
+            STM32_WARN_RO_REG(offset);
             break;
         case GPIOx_IDR_OFFSET:
             STM32_WARN_RO_REG(offset);
@@ -233,12 +258,11 @@ static void stm32_gpio_write(void *opaque, hwaddr offset,
             stm32_gpio_GPIOx_ODR_write(s,
                     (s->GPIOx_ODR & reset_mask) | set_mask);
             break;
-        case GPIOx_BRR_OFFSET:
-            /* Setting a bit resets the corresponding bit in the output
-             * register.  Register is write-only and so does not need to store
-             * a value. */
-            reset_mask = ~value & 0x0000ffff;
-            stm32_gpio_GPIOx_ODR_write(s, s->GPIOx_ODR & reset_mask);
+        case GPIOx_AFRL_OFFSET:
+            s->GPIOx_AFRL = value;
+            break;
+        case GPIOx_AFRH_OFFSET:
+            s->GPIOx_AFRH = value;
             break;
         case GPIOx_LCKR_OFFSET:
             /* Locking is not implemented */
@@ -263,10 +287,24 @@ static void stm32_gpio_reset(DeviceState *dev)
     int pin;
     Stm32Gpio *s = STM32_GPIO(dev);
 
-    s->GPIOx_CRy[0] = 0x44444444;
-    s->GPIOx_CRy[1] = 0x44444444;
+    /* 0xa8000000 for Port A
+     * 0x00000280 for port B
+     * 0x00000000 for other */
+    switch(s->periph)
+    {
+        case STM32_GPIOA:
+            stm32_gpio_GPIOx_MODER_write(s, 0xa8000000);
+            break;
+        case STM32_GPIOB:
+            stm32_gpio_GPIOx_MODER_write(s, 0x00000280);
+            break;
+        default:
+           stm32_gpio_GPIOx_MODER_write(s, 0x00000000);
+           break;
+    }
+
     s->GPIOx_ODR = 0;
-    s->dir_mask = 0; /* input = 0, output = 1 */
+    s->GPIOx_AFRL = s->GPIOx_AFRH = 0;
 
     for(pin = 0; pin < STM32_GPIO_PIN_COUNT; pin++) {
         qemu_irq_lower(s->out_irq[pin]);

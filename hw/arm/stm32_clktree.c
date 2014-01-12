@@ -26,7 +26,7 @@
 /* DEFINITIONS*/
 
 /* See README for DEBUG documentation */
-//#define DEBUG_CLKTREE
+#define DEBUG_CLKTREE
 
 
 /* Helper to:

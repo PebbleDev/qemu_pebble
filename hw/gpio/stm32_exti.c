@@ -39,12 +39,11 @@
 
 #define EXTI_PR_OFFSET 0x14
 
-/* There are 20 lines for CL devices.  Non-CL devices have only 19, but it
- * doesn't hurt to handle the maximum possible. */
-#define EXTI_LINE_COUNT 20
+/* There are 23 lines for STM32F205 devices.*/
+#define EXTI_LINE_COUNT 23
 
 /* The number of IRQ connections to the NVIC */
-#define EXTI_IRQ_COUNT 10
+#define EXTI_IRQ_COUNT 14
 
 
 struct Stm32Exti {
@@ -164,8 +163,20 @@ static void stm32_exti_change_EXTI_PR_bit(Stm32Exti *s, unsigned pos,
             /* RTCAlarm IRQ */
             qemu_set_irq(s->irq[8], new_bit_value);
         } else if(pos == 18) {
-            /* OTG_FS_WKUP IRQ */
+            /* OTG_FS_WKUP */
             qemu_set_irq(s->irq[9], new_bit_value);
+        } else if(pos == 19) {
+            /* ETH_WKUP */
+            qemu_set_irq(s->irq[10], new_bit_value);
+        } else if(pos == 20) {
+            /* OTG_HS_WKUP */
+            qemu_set_irq(s->irq[11], new_bit_value);
+        } else if(pos == 21) {
+            /* TAMP_STAMP IRQ */
+            qemu_set_irq(s->irq[12], new_bit_value);
+        } else if(pos == 22) {
+            /* RTC_WKUP Irq */
+            qemu_set_irq(s->irq[13], new_bit_value);
         } else {
             assert(false);
         }

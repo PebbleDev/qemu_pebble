@@ -59,12 +59,15 @@ const char *stm32_periph_name_arr[] =
      "GPIOE",
      "GPIOF",
      "GPIOG",
+     "GPIOH",
+     "GPIOI",
      "AFIO",
      "UART1",
      "UART2",
      "UART3",
      "UART4",
      "UART5",
+     "UART6",
      "ADC1",
      "ADC2",
      "ADC3",
@@ -77,7 +80,6 @@ const char *stm32_periph_name_arr[] =
      "TIM6",
      "TIM7",
      "TIM8",
-     "BKP",
      "PWR",
      "I2C1",
      "I2C2",
@@ -126,7 +128,6 @@ static void stm32_create_uart_dev(
         int uart_num,
         DeviceState *rcc_dev,
         DeviceState **gpio_dev,
-        DeviceState *afio_dev,
         hwaddr addr,
         qemu_irq irq)
 {
@@ -135,7 +136,6 @@ static void stm32_create_uart_dev(
     QDEV_PROP_SET_PERIPH_T(uart_dev, "periph", periph);
     qdev_prop_set_ptr(uart_dev, "stm32_rcc", rcc_dev);
     qdev_prop_set_ptr(uart_dev, "stm32_gpio", gpio_dev);
-    qdev_prop_set_ptr(uart_dev, "stm32_afio", afio_dev);
     snprintf(child_name, sizeof(child_name), "uart[%i]", uart_num);
     object_property_add_child(stm32_container, child_name, OBJECT(uart_dev), NULL);
     stm32_init_periph(uart_dev, periph, addr, irq);
@@ -186,7 +186,7 @@ void stm32_init(
     qdev_prop_set_uint32(rcc_dev, "osc_freq", osc_freq);
     qdev_prop_set_uint32(rcc_dev, "osc32_freq", osc32_freq);
     object_property_add_child(stm32_container, "rcc", OBJECT(rcc_dev), NULL);
-    stm32_init_periph(rcc_dev, STM32_RCC, 0x40021000, pic[STM32_RCC_IRQ]);
+    stm32_init_periph(rcc_dev, STM32_RCC, 0x40023800, pic[STM32_RCC_IRQ]);
 
     DeviceState **gpio_dev = (DeviceState **)g_malloc0(sizeof(DeviceState *) * STM32_GPIO_COUNT);
     for(i = 0; i < STM32_GPIO_COUNT; i++) {
@@ -197,12 +197,12 @@ void stm32_init(
         qdev_prop_set_ptr(gpio_dev[i], "stm32_rcc", rcc_dev);
         snprintf(child_name, sizeof(child_name), "gpio[%c]", 'a' + i);
         object_property_add_child(stm32_container, child_name, OBJECT(gpio_dev[i]), NULL);
-        stm32_init_periph(gpio_dev[i], periph, 0x40010800 + (i * 0x400), NULL);
+        stm32_init_periph(gpio_dev[i], periph, 0x40020000 + (i * 0x400), NULL);
     }
 
     DeviceState *exti_dev = qdev_create(NULL, TYPE_STM32_EXTI);
     object_property_add_child(stm32_container, "exti", OBJECT(exti_dev), NULL);
-    stm32_init_periph(exti_dev, STM32_EXTI, 0x40010400, NULL);
+    stm32_init_periph(exti_dev, STM32_EXTI, 0x40013c00, NULL);
     SysBusDevice *exti_busdev = SYS_BUS_DEVICE(exti_dev);
     sysbus_connect_irq(exti_busdev, 0, pic[STM32_EXTI0_IRQ]);
     sysbus_connect_irq(exti_busdev, 1, pic[STM32_EXTI1_IRQ]);
@@ -214,23 +214,16 @@ void stm32_init(
     sysbus_connect_irq(exti_busdev, 7, pic[STM32_PVD_IRQ]);
     sysbus_connect_irq(exti_busdev, 8, pic[STM32_RTCAlarm_IRQ]);
     sysbus_connect_irq(exti_busdev, 9, pic[STM32_OTG_FS_WKUP_IRQ]);
+    sysbus_connect_irq(exti_busdev, 10, pic[STM32_ETH_WKUP_IRQ]);
+    sysbus_connect_irq(exti_busdev, 11, pic[STM32_OTG_HS_WKUP_IRQ]);
+    sysbus_connect_irq(exti_busdev, 12, pic[STM32_TAMP_STAMP_IRQ]);
+    sysbus_connect_irq(exti_busdev, 13, pic[STM32_RTC_WKUP_IRQ]);
+    
 
-    DeviceState *afio_dev = qdev_create(NULL, TYPE_STM32_AFIO);
-    qdev_prop_set_ptr(afio_dev, "stm32_rcc", rcc_dev);
-    object_property_set_link(OBJECT(afio_dev), OBJECT(gpio_dev[0]), "gpio[a]", NULL);
-    object_property_set_link(OBJECT(afio_dev), OBJECT(gpio_dev[1]), "gpio[b]", NULL);
-    object_property_set_link(OBJECT(afio_dev), OBJECT(gpio_dev[2]), "gpio[c]", NULL);
-    object_property_set_link(OBJECT(afio_dev), OBJECT(gpio_dev[3]), "gpio[d]", NULL);
-    object_property_set_link(OBJECT(afio_dev), OBJECT(gpio_dev[4]), "gpio[e]", NULL);
-    object_property_set_link(OBJECT(afio_dev), OBJECT(gpio_dev[5]), "gpio[f]", NULL);
-    object_property_set_link(OBJECT(afio_dev), OBJECT(gpio_dev[6]), "gpio[g]", NULL);
-    object_property_set_link(OBJECT(afio_dev), OBJECT(exti_dev), "exti", NULL);
-    object_property_add_child(stm32_container, "afio", OBJECT(afio_dev), NULL);
-    stm32_init_periph(afio_dev, STM32_AFIO_PERIPH, 0x40010000, NULL);
-
-    stm32_create_uart_dev(stm32_container, STM32_UART1, 1, rcc_dev, gpio_dev, afio_dev, 0x40013800, pic[STM32_UART1_IRQ]);
-    stm32_create_uart_dev(stm32_container, STM32_UART2, 2, rcc_dev, gpio_dev, afio_dev, 0x40004400, pic[STM32_UART2_IRQ]);
-    stm32_create_uart_dev(stm32_container, STM32_UART3, 3, rcc_dev, gpio_dev, afio_dev, 0x40004800, pic[STM32_UART3_IRQ]);
-    stm32_create_uart_dev(stm32_container, STM32_UART4, 4, rcc_dev, gpio_dev, afio_dev, 0x40004c00, pic[STM32_UART4_IRQ]);
-    stm32_create_uart_dev(stm32_container, STM32_UART5, 5, rcc_dev, gpio_dev, afio_dev, 0x40005000, pic[STM32_UART5_IRQ]);
+    stm32_create_uart_dev(stm32_container, STM32_UART1, 1, rcc_dev, gpio_dev, 0x40011000, pic[STM32_UART1_IRQ]);
+    stm32_create_uart_dev(stm32_container, STM32_UART2, 2, rcc_dev, gpio_dev, 0x40004400, pic[STM32_UART2_IRQ]);
+    stm32_create_uart_dev(stm32_container, STM32_UART3, 3, rcc_dev, gpio_dev, 0x40004800, pic[STM32_UART3_IRQ]);
+    stm32_create_uart_dev(stm32_container, STM32_UART4, 4, rcc_dev, gpio_dev, 0x40004c00, pic[STM32_UART4_IRQ]);
+    stm32_create_uart_dev(stm32_container, STM32_UART5, 5, rcc_dev, gpio_dev, 0x40005000, pic[STM32_UART5_IRQ]);
+    stm32_create_uart_dev(stm32_container, STM32_UART6, 6, rcc_dev, gpio_dev, 0x40011400, pic[STM32_UART6_IRQ]);
 }
