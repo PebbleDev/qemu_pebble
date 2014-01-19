@@ -73,6 +73,22 @@ static void stm32_pebble_init(QEMUMachineInitArgs *args)
     sysbus_connect_irq(SYS_BUS_DEVICE(gpio_a), 12, cs_line);
 
 
+    SysBusDevice *spibusdev2 = SYS_BUS_DEVICE(spi2);
+    SSIBus *spibus2 = (SSIBus *)qdev_get_child_bus(spi2, "spi");
+    assert(spibus2);
+    assert(spibusdev2);
+
+    DeviceState *lcd_dev = ssi_create_slave(spibus2, "ls01x_lcd");
+    assert(lcd_dev);
+    qemu_irq lcd_cs_line = qdev_get_gpio_in(lcd_dev, 0);
+    qemu_set_irq(lcd_cs_line, 1);
+
+//    sysbus_connect_irq(SYS_BUS_DEVICE(gpio_b), 12, lcd_cs_line);
+
+/*    qdev_prop_set_uint32(lcd_dev, "width", 144);
+    qdev_prop_set_uint32(lcd_dev, "height", 168);
+    qdev_init_nofail(lcd_dev);*/
+
  }
 
 static QEMUMachine stm32_pebble_machine = {
