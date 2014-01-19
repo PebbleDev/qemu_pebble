@@ -30,58 +30,12 @@
 #include "ui/console.h"
 #include "sysemu/sysemu.h"
 #include "hw/boards.h"
-
-
-typedef struct {
-    Stm32 *stm32;
-
-    bool last_button_pressed;
-    qemu_irq button_irq;
-} Stm32P103;
-
-
-static void stm32_pebble_key_event(void *opaque, int keycode)
-{
-    Stm32P103 *s = (Stm32P103 *)opaque;
-    bool make;
-    int core_keycode;
-
-    if((keycode & 0x80) == 0) {
-        make = true;
-        core_keycode = keycode;
-    } else {
-        make = false;
-        core_keycode = keycode & 0x7f;
-    }
-
-    /* Responds when a "B" key press is received.
-     * Inside the monitor, you can type "sendkey b"
-     */
-    if(core_keycode == 0x30) {
-        if(make) {
-            if(!s->last_button_pressed) {
-                qemu_irq_raise(s->button_irq);
-                s->last_button_pressed = true;
-            }
-        } else {
-            if(s->last_button_pressed) {
-                qemu_irq_lower(s->button_irq);
-                s->last_button_pressed = false;
-            }
-        }
-    }
-    return;
-
-}
-
+#include "hw/ssi.h"
+#include "hw/irq.h"
 
 static void stm32_pebble_init(QEMUMachineInitArgs *args)
 {
     const char* kernel_filename = args->kernel_filename;
-
-    Stm32P103 *s;
-
-    s = (Stm32P103 *)g_malloc0(sizeof(Stm32P103));
 
     stm32_init(/*flash_size*/0x0007ffff,
                /*ram_size*/0x0001ffff,
@@ -92,20 +46,20 @@ static void stm32_pebble_init(QEMUMachineInitArgs *args)
     DeviceState *gpio_a = DEVICE(object_resolve_path("/machine/stm32/gpio[a]", NULL));
     DeviceState *gpio_b = DEVICE(object_resolve_path("/machine/stm32/gpio[b]", NULL));
     DeviceState *gpio_c = DEVICE(object_resolve_path("/machine/stm32/gpio[c]", NULL));
-    DeviceState *uart1 = DEVICE(object_resolve_path("/machine/stm32/uart[1]", NULL));
+    DeviceState *uart3 = DEVICE(object_resolve_path("/machine/stm32/uart[3]", NULL));
+    DeviceState *spi1 = DEVICE(object_resolve_path("/machine/stm32/spi[0]", NULL));
+    DeviceState *spi2 = DEVICE(object_resolve_path("/machine/stm32/spi[1]", NULL));
 
     assert(gpio_a);
     assert(gpio_b);
     assert(gpio_c);
-    assert(uart1);
-
-    /* Connect button to GPIO A pin 0 */
-    s->button_irq = qdev_get_gpio_in(gpio_a, 0);
-    qemu_add_kbd_event_handler(stm32_pebble_key_event, s);
+    assert(uart3);
+    assert(spi1);
+    assert(spi2);
 
     /* Connect RS232 to UART */
     stm32_uart_connect(
-            (Stm32Uart *)uart1,
+            (Stm32Uart *)uart3,
             serial_hds[0]);
  }
 
