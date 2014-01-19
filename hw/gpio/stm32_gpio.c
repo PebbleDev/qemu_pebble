@@ -29,11 +29,10 @@
 
 #ifdef DEBUG_STM32_GPIO
 #define DPRINTF(fmt, ...)                                       \
-    do { printf("STM32_GPIO: " fmt, ## __VA_ARGS__); } while (0)
+    do { fprintf(stderr, "STM32_GPIO: " fmt, ## __VA_ARGS__); fflush(stdout); fflush(stderr);} while (0)
 #else
 #define DPRINTF(fmt, ...)
 #endif
-
 
 
 /* DEFINITIONS*/
@@ -67,8 +66,9 @@ struct Stm32Gpio {
     uint32_t GPIOx_AFRL;
     uint32_t GPIOx_AFRH;
 
+    uint16_t input;
+    uint16_t output;
     uint16_t in;
-
     /* IRQs used to communicate with the machine implementation.
      * There is one IRQ for each pin.  Note that for pins configured
      * as inputs, the output IRQ state has no meaning.  Perhaps
@@ -132,7 +132,7 @@ static uint8_t stm32_gpio_get_pin_config(Stm32Gpio *s, unsigned pin) {
 static void stm32_gpio_GPIOx_ODR_write(Stm32Gpio *s, uint32_t new_value)
 {
     uint32_t old_value;
-    uint16_t changed, changed_out;
+    uint16_t changed, changed_out, changed_in;
     unsigned pin;
 
     old_value = s->GPIOx_ODR;
@@ -145,7 +145,20 @@ static void stm32_gpio_GPIOx_ODR_write(Stm32Gpio *s, uint32_t new_value)
     changed = old_value ^ new_value;
 
     /* Get changed pins that are outputs - we will not touch input pins */
-    changed_out = changed & 0xffffff;// & s->dir_mask;
+    changed_out = changed; // & s->output;
+    DPRINTF("Changed: 0x%X, Changed_Out: 0x%X\n", changed, changed_out & s->output);
+    changed_in = changed & s->input;
+    if(changed_in)
+    {
+        for (pin = 0; pin < STM32_GPIO_PIN_COUNT; pin++) {
+            /* If the value of this pin has changed, then update
+             * the output IRQ.
+             */
+            if (changed_out & BIT(pin)) {
+                DPRINTF("%s: Attempted to Change output of pin %u that is input! (%u)\n", stm32_periph_name(s->periph), pin, (s->GPIOx_ODR & BIT(pin)) ? 1 : 0);
+            }
+        }
+    }
 
     if (changed_out) {
         for (pin = 0; pin < STM32_GPIO_PIN_COUNT; pin++) {
@@ -156,6 +169,7 @@ static void stm32_gpio_GPIOx_ODR_write(Stm32Gpio *s, uint32_t new_value)
                 qemu_set_irq(
                         DEVICE(s)->gpio_out[pin],
                         (s->GPIOx_ODR & BIT(pin)) ? 1 : 0);
+                DPRINTF("%s: Pin %u set to %u\n", stm32_periph_name(s->periph), pin, (s->GPIOx_ODR & BIT(pin)) ? 1 : 0);
             }
         }
     }
@@ -173,10 +187,38 @@ static void stm32_gpio_GPIOx_MODER_write(Stm32Gpio *s, uint32_t new_value)
 
     for (pin = 0; pin < STM32_GPIO_PIN_COUNT; pin++) {
         // TODO: DO something with the changed values
-        mask = 0xff << pin;
+        mask = 0x3 << pin;
         if((changed & mask) != 0)
         {
+            uint8_t val = (new_value & mask) >> pin;
+            const char *mode = NULL;
+            switch(val)
+            {
+                case 0:
+                    mode = "Input";
+                    s->input |= BIT(pin);
+                    s->output &= ~BIT(pin);
+                    break;
+                case 1:
+                    mode = "Output";
+                    s->input &= ~BIT(pin);
+                    s->output |= BIT(pin);
+                    break;
+                case 2:
+                    mode = "Alternate Function";
+                    s->input &= ~BIT(pin);
+                    s->output &= ~BIT(pin);
+
+                    break;
+                case 3:
+                    mode = "Analog";
+                    s->input &= ~BIT(pin);
+                    s->output &= ~BIT(pin);
+                    break;
+            }
             // Mode is changed!
+            DPRINTF("Port: %s Pin: %d changed to %s\n", stm32_periph_name(s->periph), pin, mode);
+
         }
         changed += 1;
     }
@@ -187,50 +229,58 @@ static uint64_t stm32_gpio_read(void *opaque, hwaddr offset,
                           unsigned size)
 {
     Stm32Gpio *s = (Stm32Gpio *)opaque;
-
+    uint32_t value;
     assert(size == 4);
 
     switch (offset) {
         case GPIOx_MODER_OFFSET:
-            return s->GPIOx_MODER;
+            value = s->GPIOx_MODER;
+            break;
         case GPIOx_OTYPER_OFFSET:
         case GPIOx_OSPEEDR_OFFSET:
         case GPIOx_PUPDR_OFFSET:
             /* We ignore writes to these for now as they are not required
                for emulation, probably */
             STM32_WARN_WO_REG(offset);
-            return 0;
+            value = 0;
+            break;
         case GPIOx_IDR_OFFSET:
-            return s->in;
+            value = s->in;
+            break;
         case GPIOx_ODR_OFFSET:
-            return s->GPIOx_ODR;
+            value = s->GPIOx_ODR;
+            break;
         case GPIOx_BSRR_OFFSET:
             STM32_WARN_WO_REG(offset);
-            return 0;
+            value = 0;
+            break;
         case GPIOx_LCKR_OFFSET:
             STM32_WARN_WO_REG(offset);
             /* Locking is not yet implemented */
-            return 0;
+            value = 0;
+            break;
         case GPIOx_AFRL_OFFSET:
-            return s->GPIOx_AFRL;
+            value = s->GPIOx_AFRL;
+            break;
         case GPIOx_AFRH_OFFSET:
-            return s->GPIOx_AFRH;
+            value = s->GPIOx_AFRH;
+            break;
         default:
             STM32_BAD_REG(offset, size);
-            return 0;
+            value = 0;
+            break;
     }
+    DPRINTF("(%s) Read from 0x%X with value = 0x%X\n", stm32_periph_name(s->periph), (unsigned int)offset, value);
+    return value;
+
 }
 
-static void stm32_gpio_write(void *opaque, hwaddr offset,
-                       uint64_t value, unsigned size)
+static void stm32_gpio_writew(Stm32Gpio *s, hwaddr offset,
+                       uint32_t value)
 {
     uint32_t set_mask, reset_mask;
-    Stm32Gpio *s = (Stm32Gpio *)opaque;
 
-    assert(size == 4);
-
-    stm32_rcc_check_periph_clk((Stm32Rcc *)s->stm32_rcc, s->periph);
-    DPRINTF("(Periph: %d) Write to 0x%X with value = %" PRIu64 "\n", s->periph, (unsigned int)offset, value);
+    DPRINTF("(%s) Write to 0x%X with value = 0x%X\n", stm32_periph_name(s->periph), (unsigned int)offset, value);
     switch (offset) {
         case GPIOx_MODER_OFFSET:
             stm32_gpio_GPIOx_MODER_write(s, value);
@@ -266,18 +316,75 @@ static void stm32_gpio_write(void *opaque, hwaddr offset,
             break;
         case GPIOx_LCKR_OFFSET:
             /* Locking is not implemented */
-            STM32_NOT_IMPL_REG(offset, size);
+            STM32_NOT_IMPL_REG(offset, 4);
             break;
         default:
-            STM32_BAD_REG(offset, size);
+            STM32_BAD_REG(offset, 4);
             break;
     }
 }
 
+static void stm32_gpio_writes(Stm32Gpio *s, hwaddr offset,
+                       uint16_t value)
+{
+    uint32_t set_mask, reset_mask;
+
+    DPRINTF("(%s) Write 2 bytes to 0x%X with value = 0x%X\n", stm32_periph_name(s->periph), (unsigned int)offset, value);
+    switch(offset)
+    {
+        case GPIOx_BSRR_OFFSET:
+            /* Setting a bit sets or resets the corresponding bit in the output
+             * register.  The lower 16 bits perform resets, and the upper 16
+             * bits perform sets.  Register is write-only and so does not need
+             * to store a value.  Sets take priority over resets, so we do
+             * resets first.
+             */
+            set_mask = value;
+            stm32_gpio_GPIOx_ODR_write(s,
+                    s->GPIOx_ODR | set_mask);
+            break;
+        case GPIOx_BSRR_OFFSET+2:
+            /* Setting a bit sets or resets the corresponding bit in the output
+             * register.  The lower 16 bits perform resets, and the upper 16
+             * bits perform sets.  Register is write-only and so does not need
+             * to store a value.  Sets take priority over resets, so we do
+             * resets first.
+             */
+            reset_mask = ~(value) & 0x0000ffff;
+            stm32_gpio_GPIOx_ODR_write(s,
+                    s->GPIOx_ODR & reset_mask);
+            break;
+        default:
+            STM32_BAD_REG(offset, 4);
+            break;
+    }
+}
+
+static void stm32_gpio_write(void *opaque, hwaddr offset,
+                       uint64_t value, unsigned size)
+{
+    Stm32Gpio *s = (Stm32Gpio *)opaque;
+    stm32_rcc_check_periph_clk((Stm32Rcc *)s->stm32_rcc, s->periph);
+
+    switch(size)
+    {
+        case 2:
+            stm32_gpio_writes(s, offset, (uint16_t)value);
+            break;
+        case 4:
+            stm32_gpio_writew(s, offset, (uint32_t)value);
+            break;
+        default:
+            STM32_NOT_IMPL_REG(offset, 4);
+            break;
+    }
+}
+
+
 static const MemoryRegionOps stm32_gpio_ops = {
     .read = stm32_gpio_read,
     .write = stm32_gpio_write,
-    .valid.min_access_size = 4,
+    .valid.min_access_size = 2,
     .valid.max_access_size = 4,
     .endianness = DEVICE_NATIVE_ENDIAN
 };
@@ -287,6 +394,8 @@ static void stm32_gpio_reset(DeviceState *dev)
     int pin;
     Stm32Gpio *s = STM32_GPIO(dev);
 
+    s->output = s->input = 0;
+    s->in = 0;
     /* 0xa8000000 for Port A
      * 0x00000280 for port B
      * 0x00000000 for other */
