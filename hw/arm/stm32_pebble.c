@@ -61,6 +61,18 @@ static void stm32_pebble_init(QEMUMachineInitArgs *args)
     stm32_uart_connect(
             (Stm32Uart *)uart3,
             serial_hds[0]);
+
+    SysBusDevice *spibusdev = SYS_BUS_DEVICE(spi1);
+    SSIBus *spibus = (SSIBus *)qdev_get_child_bus(spi1, "spi");
+    assert(spibus);
+    assert(spibusdev);
+
+    DeviceState *flash_dev = ssi_create_slave(spibus, "n25q032a");
+    qemu_irq cs_line = qdev_get_gpio_in(flash_dev, 0);
+
+    sysbus_connect_irq(SYS_BUS_DEVICE(gpio_a), 12, cs_line);
+
+
  }
 
 static QEMUMachine stm32_pebble_machine = {
