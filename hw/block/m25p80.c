@@ -26,12 +26,12 @@
 #include "hw/ssi.h"
 
 #ifndef M25P80_ERR_DEBUG
-#define M25P80_ERR_DEBUG 0
+#define M25P80_ERR_DEBUG 255
 #endif
 
 #define DB_PRINT_L(level, ...) do { \
     if (M25P80_ERR_DEBUG > (level)) { \
-        fprintf(stderr,  ": %s: ", __func__); \
+        fprintf(stderr,  "m25p80: %s: ", __func__); \
         fprintf(stderr, ## __VA_ARGS__); \
     } \
 } while (0);
@@ -230,6 +230,7 @@ typedef enum {
     ERASE_4K = 0x20,
     ERASE_32K = 0x52,
     ERASE_SECTOR = 0xd8,
+    DEEP_RESUME = 0xab,
 } FlashCMD;
 
 typedef enum {
@@ -536,6 +537,8 @@ static void decode_new_cmd(Flash *s, uint32_t value)
         }
         break;
     case NOP:
+        break;
+    case DEEP_RESUME:
         break;
     default:
         qemu_log_mask(LOG_GUEST_ERROR, "M25P80: Unknown cmd %x\n", value);
