@@ -91,9 +91,12 @@ enum
   STM32_TIM7,
   STM32_TIM8,
   STM32_BKP,
+  STM32_RTC,
   STM32_PWR,
   STM32_I2C1,
   STM32_I2C2,
+  STM32_I2C3,
+  STM32_I2S1,
   STM32_I2S2,
   STM32_I2S3,
   STM32_WWDG,
@@ -104,10 +107,13 @@ enum
   STM32_SPI1,
   STM32_SPI2,
   STM32_SPI3,
+  STM32_DMA1,
+  STM32_DMA2,
   STM32_EXTI,
   STM32_SDIO,
   STM32_FSMC,
   STM32_SYSCFG,
+  STM32_FLASH,
   STM32_PERIPH_COUNT,
 };
 
@@ -145,6 +151,17 @@ const char *stm32_periph_name(stm32_periph_t periph);
 #define STM32_UART4_IRQ 52
 #define STM32_UART5_IRQ 53
 #define STM32_UART6_IRQ 71
+
+#define STM32_SPI1_IRQ 35
+#define STM32_SPI2_IRQ 36
+#define STM32_SPI3_IRQ 51
+
+#define STM32_I2C1_EV_IRQ 31
+#define STM32_I2C1_ER_IRQ 32
+#define STM32_I2C2_EV_IRQ 33
+#define STM32_I2C2_ER_IRQ 34
+#define STM32_I2C3_EV_IRQ 72
+#define STM32_I2C3_ER_IRQ 73
 
 #define STM32_EXTI0_IRQ 6
 #define STM32_EXTI1_IRQ 7
@@ -198,7 +215,8 @@ uint8_t stm32_gpio_get_config_bits(Stm32Gpio *s, unsigned pin);
 
 
 
-
+/* FakeDev */
+typedef struct Stm32Fake Stm32Fake;
 
 
 
@@ -246,7 +264,7 @@ typedef struct Stm32 Stm32;
 
 /* Initialize the STM32 microcontroller.  Returns arrays
  * of GPIOs and UARTs so that connections can be made. */
-void stm32_init(
+qemu_irq *stm32_init(
             ram_addr_t flash_size,
             ram_addr_t ram_size,
             const char *kernel_filename,
