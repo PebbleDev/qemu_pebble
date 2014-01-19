@@ -131,6 +131,18 @@ static DeviceState *stm32_init_periph(DeviceState *dev, stm32_periph_t periph,
     return dev;
 }
 
+
+static void stm32_create_fake_device(Object *stm32_container,
+        stm32_periph_t periph, uint32_t offset, uint32_t size)
+{
+    DeviceState *fake_dev = qdev_create(NULL, "stm32-fake");
+    qdev_prop_set_uint32(fake_dev, "size", size);
+    QDEV_PROP_SET_PERIPH_T(fake_dev, "periph", periph);
+    object_property_add_child(stm32_container, stm32_periph_name(periph), OBJECT(fake_dev), NULL);
+    stm32_init_periph(fake_dev, periph, offset, NULL);
+}
+
+
 static void stm32_create_uart_dev(
         Object *stm32_container,
         stm32_periph_t periph,
@@ -151,7 +163,7 @@ static void stm32_create_uart_dev(
 }
 
 
-void stm32_init(
+qemu_irq *stm32_init(
             ram_addr_t flash_size,
             ram_addr_t ram_size,
             const char *kernel_filename,
@@ -227,7 +239,6 @@ void stm32_init(
     sysbus_connect_irq(exti_busdev, 11, pic[STM32_OTG_HS_WKUP_IRQ]);
     sysbus_connect_irq(exti_busdev, 12, pic[STM32_TAMP_STAMP_IRQ]);
     sysbus_connect_irq(exti_busdev, 13, pic[STM32_RTC_WKUP_IRQ]);
-    
 
     stm32_create_uart_dev(stm32_container, STM32_UART1, 1, rcc_dev, gpio_dev, 0x40011000, pic[STM32_UART1_IRQ]);
     stm32_create_uart_dev(stm32_container, STM32_UART2, 2, rcc_dev, gpio_dev, 0x40004400, pic[STM32_UART2_IRQ]);
@@ -235,4 +246,15 @@ void stm32_init(
     stm32_create_uart_dev(stm32_container, STM32_UART4, 4, rcc_dev, gpio_dev, 0x40004c00, pic[STM32_UART4_IRQ]);
     stm32_create_uart_dev(stm32_container, STM32_UART5, 5, rcc_dev, gpio_dev, 0x40005000, pic[STM32_UART5_IRQ]);
     stm32_create_uart_dev(stm32_container, STM32_UART6, 6, rcc_dev, gpio_dev, 0x40011400, pic[STM32_UART6_IRQ]);
+    stm32_create_fake_device(stm32_container, STM32_SYSCFG, 0x40013800, 0x400);
+    stm32_create_fake_device(stm32_container, STM32_WWDG, 0x40002c00, 0x400);
+    stm32_create_fake_device(stm32_container, STM32_RTC, 0x40002800, 0x400);
+    stm32_create_fake_device(stm32_container, STM32_FLASH, 0x40023C00, 0x400);
+    stm32_create_fake_device(stm32_container, STM32_DMA1, 0x40026000, 0x400);
+    stm32_create_fake_device(stm32_container, STM32_DMA2, 0x40026400, 0x400);
+    stm32_create_fake_device(stm32_container, STM32_PWR, 0x40007000, 0x400);
+    stm32_create_fake_device(stm32_container, STM32_I2C1, 0x40005400, 0x400);
+    stm32_create_fake_device(stm32_container, STM32_I2C2, 0x40005800, 0x400);
+    stm32_create_fake_device(stm32_container, STM32_I2C3, 0x40005c00, 0x400);
+    return pic;
 }
