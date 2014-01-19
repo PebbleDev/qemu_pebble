@@ -143,6 +143,19 @@ static void stm32_create_fake_device(Object *stm32_container,
 }
 
 
+static void stm32_create_spi_dev(Object *stm32_container,
+        stm32_periph_t periph, hwaddr offset, qemu_irq irq)
+{
+    char child_name[8];
+    int spi_num = periph - STM32_SPI1;
+    DeviceState *spi_dev = qdev_create(NULL, "stm32-spi");
+    QDEV_PROP_SET_PERIPH_T(spi_dev, "periph", periph);
+    snprintf(child_name, 8, "spi[%i]", spi_num);
+    object_property_add_child(stm32_container, child_name, OBJECT(spi_dev), NULL);
+    stm32_init_periph(spi_dev, periph, offset, irq);
+}
+
+
 static void stm32_create_uart_dev(
         Object *stm32_container,
         stm32_periph_t periph,
@@ -246,6 +259,11 @@ qemu_irq *stm32_init(
     stm32_create_uart_dev(stm32_container, STM32_UART4, 4, rcc_dev, gpio_dev, 0x40004c00, pic[STM32_UART4_IRQ]);
     stm32_create_uart_dev(stm32_container, STM32_UART5, 5, rcc_dev, gpio_dev, 0x40005000, pic[STM32_UART5_IRQ]);
     stm32_create_uart_dev(stm32_container, STM32_UART6, 6, rcc_dev, gpio_dev, 0x40011400, pic[STM32_UART6_IRQ]);
+
+    stm32_create_spi_dev(stm32_container, STM32_SPI1, 0x40013000, pic[STM32_SPI1_IRQ]);
+    stm32_create_spi_dev(stm32_container, STM32_SPI2, 0x40003800, pic[STM32_SPI2_IRQ]);
+    stm32_create_spi_dev(stm32_container, STM32_SPI3, 0x40003c00, pic[STM32_SPI3_IRQ]);
+
     stm32_create_fake_device(stm32_container, STM32_SYSCFG, 0x40013800, 0x400);
     stm32_create_fake_device(stm32_container, STM32_WWDG, 0x40002c00, 0x400);
     stm32_create_fake_device(stm32_container, STM32_RTC, 0x40002800, 0x400);
