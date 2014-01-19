@@ -243,6 +243,8 @@ uint32_t stm32_rcc_get_periph_freq(
 
 
 
+/* SPI */
+typedef struct Stm32Spi Stm32Spi;
 
 
 
