@@ -253,6 +253,14 @@ qemu_irq *stm32_init(
     sysbus_connect_irq(exti_busdev, 12, pic[STM32_TAMP_STAMP_IRQ]);
     sysbus_connect_irq(exti_busdev, 13, pic[STM32_RTC_WKUP_IRQ]);
 
+
+    DeviceState *rtc_dev = qdev_create(NULL, "stm32-rtc");
+    object_property_add_child(stm32_container, "rtc", OBJECT(rtc_dev), NULL);
+    stm32_init_periph(rtc_dev, STM32_RTC, 0x40002800, 0);
+    sysbus_connect_irq(SYS_BUS_DEVICE(rtc_dev), 0, pic[STM32_RTCAlarm_IRQ]);
+    sysbus_connect_irq(SYS_BUS_DEVICE(rtc_dev), 1, pic[STM32_RTC_WKUP_IRQ]);
+    sysbus_connect_irq(SYS_BUS_DEVICE(rtc_dev), 2, pic[STM32_TAMP_STAMP_IRQ]);
+
     stm32_create_uart_dev(stm32_container, STM32_UART1, 1, rcc_dev, gpio_dev, 0x40011000, pic[STM32_UART1_IRQ]);
     stm32_create_uart_dev(stm32_container, STM32_UART2, 2, rcc_dev, gpio_dev, 0x40004400, pic[STM32_UART2_IRQ]);
     stm32_create_uart_dev(stm32_container, STM32_UART3, 3, rcc_dev, gpio_dev, 0x40004800, pic[STM32_UART3_IRQ]);
@@ -266,7 +274,7 @@ qemu_irq *stm32_init(
 
     stm32_create_fake_device(stm32_container, STM32_SYSCFG, 0x40013800, 0x400);
     stm32_create_fake_device(stm32_container, STM32_WWDG, 0x40002c00, 0x400);
-    stm32_create_fake_device(stm32_container, STM32_RTC, 0x40002800, 0x400);
+
     stm32_create_fake_device(stm32_container, STM32_FLASH, 0x40023C00, 0x400);
     stm32_create_fake_device(stm32_container, STM32_DMA1, 0x40026000, 0x400);
     stm32_create_fake_device(stm32_container, STM32_DMA2, 0x40026400, 0x400);
