@@ -71,7 +71,7 @@ static void stm32_pebble_init(QEMUMachineInitArgs *args)
     assert(flash_dev);
 
     qemu_irq cs_line = qdev_get_gpio_in(flash_dev, 0);
-    qemu_connect_gpio_out(gpio_a, 4, cs_line);
+    qdev_connect_gpio_out(gpio_a, 4, cs_line);
 
     SysBusDevice *spibusdev2 = SYS_BUS_DEVICE(spi2);
     SSIBus *spibus2 = (SSIBus *)qdev_get_child_bus(spi2, "spi");
