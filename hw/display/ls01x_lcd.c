@@ -127,7 +127,6 @@ static void ls01x_lcd_update_display(void *opaque)
     uint32_t colors[2];
     int x;
     int y;
-//    int i;
     int line;
     int dest_width;
 
@@ -159,7 +158,6 @@ static void ls01x_lcd_update_display(void *opaque)
         return;
     }
 
-    /* TODO: Implement row/column remapping.  */
     dest = surface_data(surface);
     for (y = s->height-1; y >= 0; y--) {
         line = y;
@@ -168,20 +166,13 @@ static void ls01x_lcd_update_display(void *opaque)
         for (x = 0; x < s->width; x++) {
             int val;
             val = *src;
-//            for (i = 0; i < MAGNIFY; i++) {
                 memcpy(dest, &colors[val], dest_width);
                 dest += dest_width;
-//            }
             src--;
         }
-/*        for (i = 1; i < MAGNIFY; i++) {
-            memcpy(dest, dest - dest_width * MAGNIFY * 128,
-                   dest_width * 128 * MAGNIFY);
-            dest += dest_width * 128 * MAGNIFY;
-        }*/
     }
     s->redraw = 0;
-    dpy_gfx_update(s->con, 0, 0, s->height * MAGNIFY, s->width * MAGNIFY);
+    dpy_gfx_update(s->con, 0, 0, s->height, s->width);
 }
 
 static void ls01x_lcd_invalidate_display(void * opaque)
@@ -191,7 +182,7 @@ static void ls01x_lcd_invalidate_display(void * opaque)
 }
 
 /*
-static void ssd0323_save(QEMUFile *f, void *opaque)
+static void ls01x_lcd_save(QEMUFile *f, void *opaque)
 {
     SSISlave *ss = SSI_SLAVE(opaque);
     ssd0323_state *s = (ssd0323_state *)opaque;
@@ -249,17 +240,22 @@ static const GraphicHwOps ls01x_lcd_ops = {
     .gfx_update  = ls01x_lcd_update_display,
 };
 
+static int ls01x_lcd_set_cs(SSISlave *dev, bool level)
+{
+    DPRINTF("CS is %u\n", level);
+    return 0;
+}
+
 static int ls01x_lcd_init(SSISlave *dev)
 {
     ls01x_lcd_state *s = FROM_SSI_SLAVE(ls01x_lcd_state, dev);
-    DPRINTF("Allocating framebuffer of size %d, %d\n", s->width, s->height);
     fflush(stderr);
     s->framebuffer = g_new(uint8_t, s->width*s->height);
     memset(s->framebuffer, 0, s->width*s->height);
     s->con = graphic_console_init(DEVICE(dev), &ls01x_lcd_ops, s);
     qemu_console_resize(s->con, s->width, s->height);
     s->state = LS01X_LCD_CMD;
-//    qdev_init_gpio_in(&dev->qdev, ls01x_lcd_cd, 1);
+//    qdev_init_gpio_in(&dev->qdev, ls01x_lcd_cd, 0);
 
 /*    register_savevm(&dev->qdev, "ssd0323_oled", -1, 1,
                     ssd0323_save, ssd0323_load, s);*/
@@ -279,6 +275,7 @@ static void ls01x_lcd_class_init(ObjectClass *klass, void *data)
 
     k->init = ls01x_lcd_init;
     k->transfer = ls01x_lcd_transfer;
+    k->set_cs = ls01x_lcd_set_cs;
     k->cs_polarity = SSI_CS_HIGH;
     dc->props = ls01x_lcd_properties;
 }
