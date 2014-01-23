@@ -399,15 +399,16 @@ static uint64_t stm32_rtc_read(void *opaque, hwaddr offset,
 
     switch (offset) {
         case RTC_TR_OFFSET:
-            value = (to_bcd(s->current_tm.tm_hour) & 0x3f) << RTC_TR_HU_START |
-                    (to_bcd(s->current_tm.tm_min) & 0x7f) << RTC_TR_MNU_START |
-                    (to_bcd(s->current_tm.tm_sec) & 0x7f) << RTC_TR_SU_START;
+              value = (((uint32_t)to_bcd(s->current_tm.tm_hour) << RTC_TR_HU_START) |
+                       ((uint32_t)to_bcd(s->current_tm.tm_min) << RTC_TR_MNU_START) |
+                       ((uint32_t)to_bcd(s->current_tm.tm_sec)) |
+                       ((uint32_t)(s->current_tm.tm_hour > 12) << RTC_TR_PM_BIT));
             break;
         case RTC_DR_OFFSET:
-            value = (to_bcd((s->current_tm.tm_year - 100)) & 0xff) << RTC_DR_YU_START |
-                    (to_bcd(s->current_tm.tm_wday) & 0x1f) << RTC_DR_WDU_START |
-                    (to_bcd(s->current_tm.tm_mon) & 0x3f) << RTC_DR_MU_START |
-                    (to_bcd(s->current_tm.tm_mday) & 0x3f) << RTC_DR_DU_START;
+                value = (((uint32_t)to_bcd(s->current_tm.tm_year - 100) << RTC_DR_YU_START) |
+                         ((uint32_t)to_bcd(s->current_tm.tm_mon + 1) << RTC_DR_MU_START) |
+                         ((uint32_t)to_bcd(s->current_tm.tm_mday)) |
+                         ((uint32_t)to_bcd(s->current_tm.tm_wday) << RTC_DR_WDU_START));
             break;
         case RTC_WUTR_OFFSET:
         case RTC_CALIBR_OFFSET:
@@ -515,6 +516,7 @@ static void stm32_rtc_write(void *opaque, hwaddr offset,
         uint64_t value, unsigned size)
 {
     STM32RTCState *s = (STM32RTCState *)opaque;
+    uint32_t old_value;
     assert(size == 4);
     DPRINTF("Write to 0x%x with value 0x%x\n", (uint32_t)offset, (uint32_t)value);
     switch (offset) {
@@ -533,10 +535,18 @@ static void stm32_rtc_write(void *opaque, hwaddr offset,
                 STM32_NOT_IMPL_REG(offset, size);
             break;
         case RTC_ISR_OFFSET:
+            old_value = s->RTC_ISR_INIT;
             s->RTC_ISR_INIT = extract32(value, RTC_ISR_INIT_BIT, 1);
-            if(value & BIT(RTC_ISR_INIT_BIT))
+            if((value & BIT(RTC_ISR_INIT_BIT)) && old_value == 0)
             {
                 DPRINTF("Entering Init mode!\n");
+                ptimer_stop(s->ptimer_1Hz);
+            }
+            else if(!(value & BIT(RTC_ISR_INIT_BIT)) && old_value == 1)
+            {
+                DPRINTF("Exiting init mode\n");
+                ptimer_set_count(s->ptimer_1Hz, RTC_BASE_FREQ);
+                ptimer_run(s->ptimer_1Hz, 1);
             }
             if(!(value & BIT(RTC_ISR_RSF_BIT)))
             {
