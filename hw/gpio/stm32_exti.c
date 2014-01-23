@@ -220,7 +220,7 @@ static void stm32_exti_write(void *opaque, hwaddr offset,
     int pos, bit_value;
 
     assert(size == 4);
-    fprintf(stderr, "STM32_EXIT: Writing 0x%X to 0x%X\n", (uint32_t)offset, (uint32_t)value);
+    fprintf(stderr, "STM32_EXIT: Writing 0x%X to 0x%X\n", (uint32_t)value, (uint32_t)offset);
     if(offset <= EXTI_EMR_OFFSET) {
         switch (offset) {
             case EXTI_IMR_OFFSET:

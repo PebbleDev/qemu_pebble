@@ -422,9 +422,11 @@ static uint64_t stm32_rtc_read(void *opaque, hwaddr offset,
             break;
         case RTC_PRER_OFFSET:
             value = s->RTC_PRER;
+            DPRINTF("Read from 0x%x, value 0x%x\n", (uint32_t)offset, (uint32_t)value);
             break;
         case RTC_CR_OFFSET:
             value = s->RTC_CR;
+            DPRINTF("Read from 0x%x, value 0x%x\n", (uint32_t)offset, (uint32_t)value);
             break;
         case RTC_ISR_OFFSET:
             value = s->RTC_ISR_INIT << RTC_ISR_INIT_BIT |
@@ -432,67 +434,8 @@ static uint64_t stm32_rtc_read(void *opaque, hwaddr offset,
                     s->RTC_ISR_RSF << RTC_ISR_RSF_BIT |
                     (s->current_tm.tm_year > 0) << RTC_ISR_INITS_BIT |
                     0x00000007;
+            DPRINTF("Read from 0x%x, value 0x%x\n", (uint32_t)offset, (uint32_t)value);
             break;
-/*
-
-    case INTP:
-        value = s->reg_intp;
-        break;
-    case RTCCON:
-        value = s->reg_rtccon;
-        break;
-    case TICCNT:
-        value = s->reg_ticcnt;
-        break;
-    case RTCALM:
-        value = s->reg_rtcalm;
-        break;
-    case ALMSEC:
-        value = s->reg_almsec;
-        break;
-    case ALMMIN:
-        value = s->reg_almmin;
-        break;
-    case ALMHOUR:
-        value = s->reg_almhour;
-        break;
-    case ALMDAY:
-        value = s->reg_almday;
-        break;
-    case ALMMON:
-        value = s->reg_almmon;
-        break;
-    case ALMYEAR:
-        value = s->reg_almyear;
-        break;
-
-    case BCDSEC:
-        value = (uint32_t)to_bcd((uint8_t)s->current_tm.tm_sec);
-        break;
-    case BCDMIN:
-        value = (uint32_t)to_bcd((uint8_t)s->current_tm.tm_min);
-        break;
-    case BCDHOUR:
-        value = (uint32_t)to_bcd((uint8_t)s->current_tm.tm_hour);
-        break;
-    case BCDDAYWEEK:
-        value = (uint32_t)to_bcd((uint8_t)s->current_tm.tm_wday);
-        break;
-    case BCDDAY:
-        value = (uint32_t)to_bcd((uint8_t)s->current_tm.tm_mday);
-        break;
-    case BCDMON:
-        value = (uint32_t)to_bcd((uint8_t)s->current_tm.tm_mon + 1);
-        break;
-    case BCDYEAR:
-        value = BCD3DIGITS(s->current_tm.tm_year);
-        break;
-
-    case CURTICNT:
-        s->reg_curticcnt = ptimer_get_count(s->ptimer);
-        value = s->reg_curticcnt;
-        break;
-*/
     default:
         if(offset >= RTC_BKP0R_OFFSET && offset <= RTC_BKP19R_OFFSET)
         {
@@ -505,7 +448,6 @@ static uint64_t stm32_rtc_read(void *opaque, hwaddr offset,
                 offset);
         break;
     }
-    DPRINTF("Read from 0x%x, value 0x%x\n", (uint32_t)offset, (uint32_t)value);
     return value;
 }
 
