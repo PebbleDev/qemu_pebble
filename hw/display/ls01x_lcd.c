@@ -13,7 +13,7 @@
 #include "hw/ssi.h"
 #include "ui/console.h"
 #include "qemu/bitops.h"
-#define DEBUG_LS01X_LCD 1
+//#define DEBUG_LS01X_LCD 1
 
 #ifdef DEBUG_LS01X_LCD
 #define DPRINTF(fmt, ...) \
@@ -99,6 +99,7 @@ static uint32_t ls01x_lcd_transfer(SSISlave *dev, uint32_t data)
                 case CMD_CLEAR_SCREEN:
                     DPRINTF("Clearing LCD\n");
                     s->state = LS01X_LCD_TRAILER;
+                    memset(s->framebuffer, 0, s->width*s->height);
                     break;
                 case CMD_WRITE_LINE:
                     DPRINTF("Write line\n");
@@ -255,7 +256,6 @@ static int ls01x_lcd_init(SSISlave *dev)
     s->con = graphic_console_init(DEVICE(dev), &ls01x_lcd_ops, s);
     qemu_console_resize(s->con, s->width, s->height);
     s->state = LS01X_LCD_CMD;
-//    qdev_init_gpio_in(&dev->qdev, ls01x_lcd_cd, 0);
 
 /*    register_savevm(&dev->qdev, "ssd0323_oled", -1, 1,
                     ssd0323_save, ssd0323_load, s);*/
