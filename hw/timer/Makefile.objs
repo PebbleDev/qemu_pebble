@@ -29,6 +29,5 @@ obj-$(CONFIG_TUSB6010) += tusb6010.o
 obj-$(CONFIG_DIGIC) += digic-timer.o
 
 obj-$(CONFIG_MC146818RTC) += mc146818rtc.o
-
 obj-$(CONFIG_ALLWINNER_A10_PIT) += allwinner-a10-pit.o
-obj-$(CONFIG_STM32) += stm32_rtc.o
+obj-$(CONFIG_STM32) += stm32_rtc.o stm32_tim2_5.o

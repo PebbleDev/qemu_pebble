@@ -77,8 +77,14 @@ const char *stm32_periph_name_arr[] = {
     [STM32_TIM4] = "TIM4",
     [STM32_TIM5] = "TIM5",
     [STM32_TIM6] = "TIM6",
-    [STM32_TIM6] = "TIM7",
-    [STM32_TIM7] = "TIM8",
+    [STM32_TIM7] = "TIM7",
+    [STM32_TIM8] = "TIM8",
+    [STM32_TIM9] = "TIM9",
+    [STM32_TIM10] = "TIM10",
+    [STM32_TIM11] = "TIM11",
+    [STM32_TIM12] = "TIM12",
+    [STM32_TIM13] = "TIM13",
+    [STM32_TIM14] = "TIM14",
     [STM32_PWR] = "PWR",
     [STM32_I2C1] = "I2C1",
     [STM32_I2C2] = "I2C2",
@@ -285,6 +291,29 @@ qemu_irq *stm32_init(
     stm32_create_fake_device(stm32_container, STM32_PWR, 0x40007000, 0x400);
     stm32_create_fake_device(stm32_container, STM32_I2C1, 0x40005400, 0x400);
     stm32_create_fake_device(stm32_container, STM32_I2C2, 0x40005800, 0x400);
-    stm32_create_fake_device(stm32_container, STM32_I2C3, 0x40005c00, 0x400);
+    stm32_create_fake_device(stm32_container, STM32_I2C3, 0x40005c00, 0x400);*/
+ 
+    stm32_create_fake_device(stm32_container, STM32_ADC1, 0x40012000, 0x400);
+
+    DeviceState *tim4_dev = qdev_create(NULL, "stm32-tim25");
+    object_property_add_child(stm32_container, "tim4", OBJECT(tim4_dev), NULL);
+    stm32_init_periph(tim4_dev, STM32_TIM4, 0x40000800, pic[STM32_TIM4_IRQ]);
+//    stm32_create_fake_device(stm32_container, STM32_TIM4, 0x40000800, 0x400);
+
+
+    stm32_create_fake_device(stm32_container, STM32_TIM1, 0x40010000, 0x400);
+    stm32_create_fake_device(stm32_container, STM32_TIM2, 0x40000000, 0x400);
+    stm32_create_fake_device(stm32_container, STM32_TIM3, 0x40000400, 0x400);
+    stm32_create_fake_device(stm32_container, STM32_TIM5, 0x40000c00, 0x400);
+    stm32_create_fake_device(stm32_container, STM32_TIM6, 0x40001000, 0x400);
+    stm32_create_fake_device(stm32_container, STM32_TIM7, 0x40001400, 0x400);
+    stm32_create_fake_device(stm32_container, STM32_TIM12, 0x40001800, 0x400);
+    stm32_create_fake_device(stm32_container, STM32_TIM13, 0x40001c00, 0x400);
+    stm32_create_fake_device(stm32_container, STM32_TIM14, 0x40002000, 0x400);
+    stm32_create_fake_device(stm32_container, STM32_TIM8, 0x40010400, 0x400);
+    stm32_create_fake_device(stm32_container, STM32_TIM9, 0x40014000, 0x400);
+    stm32_create_fake_device(stm32_container, STM32_TIM10, 0x40014400, 0x400);
+    stm32_create_fake_device(stm32_container, STM32_TIM11, 0x40014800, 0x400);
+
     return pic;
 }

@@ -90,6 +90,12 @@ enum
   STM32_TIM6,
   STM32_TIM7,
   STM32_TIM8,
+  STM32_TIM9,
+  STM32_TIM10,
+  STM32_TIM11,
+  STM32_TIM12,
+  STM32_TIM13,
+  STM32_TIM14,
   STM32_BKP,
   STM32_RTC,
   STM32_PWR,
@@ -162,6 +168,11 @@ const char *stm32_periph_name(stm32_periph_t periph);
 #define STM32_I2C2_ER_IRQ 34
 #define STM32_I2C3_EV_IRQ 72
 #define STM32_I2C3_ER_IRQ 73
+
+#define STM32_TIM2_IRQ 28
+#define STM32_TIM3_IRQ 29
+#define STM32_TIM4_IRQ 30
+#define STM32_TIM5_IRQ 50
 
 #define STM32_EXTI0_IRQ 6
 #define STM32_EXTI1_IRQ 7

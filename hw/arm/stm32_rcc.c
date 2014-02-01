@@ -544,6 +544,17 @@ static void stm32_rcc_RCC_APB2ENR_write(Stm32Rcc *s, uint32_t new_value,
     stm32_rcc_periph_enable(s, new_value, init, STM32_SPI1,
                             RCC_APB2ENR_SPI1EN_BIT);
 
+    stm32_rcc_periph_enable(s, new_value, init, STM32_TIM1,
+                            RCC_APB2ENR_TIM1EN_BIT);
+    stm32_rcc_periph_enable(s, new_value, init, STM32_TIM8,
+                            RCC_APB2ENR_TIM8EN_BIT);
+    stm32_rcc_periph_enable(s, new_value, init, STM32_TIM9,
+                            RCC_APB2ENR_TIM9EN_BIT);
+    stm32_rcc_periph_enable(s, new_value, init, STM32_TIM10,
+                            RCC_APB2ENR_TIM10EN_BIT);
+    stm32_rcc_periph_enable(s, new_value, init, STM32_TIM11,
+                            RCC_APB2ENR_TIM11EN_BIT);
+
     s->RCC_APB2ENR = new_value & 0xffffffff;
 }
 
@@ -568,6 +579,27 @@ static void stm32_rcc_RCC_APB1ENR_write(Stm32Rcc *s, uint32_t new_value,
                             RCC_APB1ENR_SPI2EN_BIT);
     stm32_rcc_periph_enable(s, new_value, init, STM32_SPI3,
                             RCC_APB1ENR_SPI3EN_BIT);
+
+    stm32_rcc_periph_enable(s, new_value, init, STM32_TIM14,
+                            RCC_APB1ENR_TIM14EN_BIT);
+    stm32_rcc_periph_enable(s, new_value, init, STM32_TIM13,
+                            RCC_APB1ENR_TIM13EN_BIT);
+    stm32_rcc_periph_enable(s, new_value, init, STM32_TIM12,
+                            RCC_APB1ENR_TIM12EN_BIT);
+    stm32_rcc_periph_enable(s, new_value, init, STM32_TIM7,
+                            RCC_APB1ENR_TIM7EN_BIT);
+    stm32_rcc_periph_enable(s, new_value, init, STM32_TIM6,
+                            RCC_APB1ENR_TIM7EN_BIT);
+    stm32_rcc_periph_enable(s, new_value, init, STM32_TIM6,
+                            RCC_APB1ENR_TIM6EN_BIT);
+    stm32_rcc_periph_enable(s, new_value, init, STM32_TIM5,
+                            RCC_APB1ENR_TIM5EN_BIT);
+    stm32_rcc_periph_enable(s, new_value, init, STM32_TIM4,
+                            RCC_APB1ENR_TIM4EN_BIT);
+    stm32_rcc_periph_enable(s, new_value, init, STM32_TIM3,
+                            RCC_APB1ENR_TIM3EN_BIT);
+    stm32_rcc_periph_enable(s, new_value, init, STM32_TIM2,
+                            RCC_APB1ENR_TIM2EN_BIT);
 
     s->RCC_APB1ENR = new_value & 0xffffffff;
 }
@@ -953,6 +985,21 @@ static void stm32_rcc_init_clk(Stm32Rcc *s)
     s->PERIPHCLK[STM32_SPI1] = clktree_create_clk("SPI1", 1, 1, false, CLKTREE_NO_MAX_FREQ, 0, s->PCLK2, NULL);
     s->PERIPHCLK[STM32_SPI2] = clktree_create_clk("SPI2", 1, 1, false, CLKTREE_NO_MAX_FREQ, 0, s->PCLK1, NULL);
     s->PERIPHCLK[STM32_SPI3] = clktree_create_clk("SPI3", 1, 1, false, CLKTREE_NO_MAX_FREQ, 0, s->PCLK1, NULL);
+
+    s->PERIPHCLK[STM32_TIM1] = clktree_create_clk("TIM1", 1, 1, false, CLKTREE_NO_MAX_FREQ, 0, s->PCLK1, NULL);
+    s->PERIPHCLK[STM32_TIM2] = clktree_create_clk("TIM2", 1, 1, false, CLKTREE_NO_MAX_FREQ, 0, s->PCLK1, NULL);
+    s->PERIPHCLK[STM32_TIM3] = clktree_create_clk("TIM3", 1, 1, false, CLKTREE_NO_MAX_FREQ, 0, s->PCLK1, NULL);
+    s->PERIPHCLK[STM32_TIM4] = clktree_create_clk("TIM4", 1, 1, false, CLKTREE_NO_MAX_FREQ, 0, s->PCLK1, NULL);
+    s->PERIPHCLK[STM32_TIM5] = clktree_create_clk("TIM5", 1, 1, false, CLKTREE_NO_MAX_FREQ, 0, s->PCLK1, NULL);
+    s->PERIPHCLK[STM32_TIM6] = clktree_create_clk("TIM6", 1, 1, false, CLKTREE_NO_MAX_FREQ, 0, s->PCLK1, NULL);
+    s->PERIPHCLK[STM32_TIM7] = clktree_create_clk("TIM7", 1, 1, false, CLKTREE_NO_MAX_FREQ, 0, s->PCLK1, NULL);
+    s->PERIPHCLK[STM32_TIM8] = clktree_create_clk("TIM8", 1, 1, false, CLKTREE_NO_MAX_FREQ, 0, s->PCLK1, NULL);
+    s->PERIPHCLK[STM32_TIM9] = clktree_create_clk("TIM9", 1, 1, false, CLKTREE_NO_MAX_FREQ, 0, s->PCLK1, NULL);
+    s->PERIPHCLK[STM32_TIM10] = clktree_create_clk("TIM10", 1, 1, false, CLKTREE_NO_MAX_FREQ, 0, s->PCLK1, NULL);
+    s->PERIPHCLK[STM32_TIM11] = clktree_create_clk("TIM11", 1, 1, false, CLKTREE_NO_MAX_FREQ, 0, s->PCLK1, NULL);
+    s->PERIPHCLK[STM32_TIM12] = clktree_create_clk("TIM12", 1, 1, false, CLKTREE_NO_MAX_FREQ, 0, s->PCLK1, NULL);
+    s->PERIPHCLK[STM32_TIM13] = clktree_create_clk("TIM13", 1, 1, false, CLKTREE_NO_MAX_FREQ, 0, s->PCLK1, NULL);
+    s->PERIPHCLK[STM32_TIM14] = clktree_create_clk("TIM14", 1, 1, false, CLKTREE_NO_MAX_FREQ, 0, s->PCLK1, NULL);
 }
 
 
