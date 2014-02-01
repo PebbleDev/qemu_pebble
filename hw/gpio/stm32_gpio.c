@@ -274,6 +274,8 @@ static uint64_t stm32_gpio_read(void *opaque, hwaddr offset,
             value = 0;
             break;
     }
+    DPRINTF("%s: Read of size %u from 0x%X with value = 0x%X\n", stm32_periph_name(s->periph), size, (uint32_t)offset, (uint32_t)value);
+
     return value;
 }
 
@@ -366,7 +368,7 @@ static void stm32_gpio_write(void *opaque, hwaddr offset,
 {
     Stm32Gpio *s = (Stm32Gpio *)opaque;
     stm32_rcc_check_periph_clk((Stm32Rcc *)s->stm32_rcc, s->periph);
-
+    DPRINTF("%s: Write of size %u to 0x%X with value = 0x%X\n", stm32_periph_name(s->periph), size, (uint32_t)offset, (uint32_t)value);
     switch(size)
     {
         case 2:
