@@ -297,6 +297,25 @@ static void stm32_rcc_periph_enable(
 
 
 
+static const char* stm32_rcc_registername(hwaddr offset)
+{
+
+    switch(offset)
+    {
+        case RCC_AHB1RSTR_OFFSET:
+            return "RCC_AHB1RSTR";
+        case RCC_AHB2RSTR_OFFSET:
+            return "RCC_AHB2RSTR";
+        case RCC_AHB3RSTR_OFFSET:
+            return "RCC_AHB3RSTR";
+        case RCC_APB1RSTR_OFFSET:
+            return "RCC_APB1RSTR";
+        case RCC_APB2RSTR_OFFSET:
+            return "RCC_APB2RSTR";
+        default:
+            return "Unknown";
+    }
+}
 
 
 /* REGISTER IMPLEMENTATION */
@@ -526,7 +545,6 @@ static void stm32_rcc_RCC_AHB1ENR_write(Stm32Rcc *s, uint32_t new_value,
                             RCC_AHB1ENR_GPIOBEN_BIT);
     stm32_rcc_periph_enable(s, new_value, init, STM32_GPIOA,
                             RCC_AHB1ENR_GPIOAEN_BIT);
-
     s->RCC_AHB1ENR = new_value;
 }
 
@@ -726,7 +744,7 @@ static void stm32_rcc_writew(void *opaque, hwaddr offset,
         case RCC_AHB3RSTR_OFFSET:
         case RCC_APB1RSTR_OFFSET:
         case RCC_APB2RSTR_OFFSET:
-            stm32_hw_warn("Attempting to reset Periph: %" PRIu64, value);
+            DPRINTF("%s (0x%X): Attempting to reset Periph: %" PRIu64 "\n", stm32_rcc_registername(offset), (uint32_t)offset, value);
 //            STM32_NOT_IMPL_REG(offset, 4);
             break;
         case RCC_AHB1ENR_OFFSET:
