@@ -161,6 +161,20 @@ static void stm32_create_spi_dev(Object *stm32_container,
     stm32_init_periph(spi_dev, periph, offset, irq);
 }
 
+static void stm32_create_i2c_dev(Object *stm32_container,
+        stm32_periph_t periph, hwaddr offset, qemu_irq irq, qemu_irq irq2)
+{
+    char child_name[8];
+    int i2c_num = periph - STM32_I2C1;
+    DeviceState *i2c_dev = qdev_create(NULL, "stm32-i2c");
+    QDEV_PROP_SET_PERIPH_T(i2c_dev, "periph", periph);
+    snprintf(child_name, 8, "i2c[%i]", i2c_num);
+    object_property_add_child(stm32_container, child_name, OBJECT(i2c_dev), NULL);
+    stm32_init_periph(i2c_dev, periph, offset, NULL);
+    sysbus_connect_irq(SYS_BUS_DEVICE(i2c_dev), 0, irq);
+    sysbus_connect_irq(SYS_BUS_DEVICE(i2c_dev), 1, irq2);
+}
+
 
 static void stm32_create_uart_dev(
         Object *stm32_container,
@@ -289,7 +303,12 @@ qemu_irq *stm32_init(
     stm32_create_fake_device(stm32_container, STM32_DMA1, 0x40026000, 0x400);
     stm32_create_fake_device(stm32_container, STM32_DMA2, 0x40026400, 0x400);
     stm32_create_fake_device(stm32_container, STM32_PWR, 0x40007000, 0x400);
-    stm32_create_fake_device(stm32_container, STM32_I2C1, 0x40005400, 0x400);
+
+    stm32_create_i2c_dev(stm32_container, STM32_I2C1, 0x40005400, pic[STM32_I2C1_EV_IRQ], pic[STM32_I2C1_ER_IRQ]);
+    stm32_create_i2c_dev(stm32_container, STM32_I2C2, 0x40005800, pic[STM32_I2C2_EV_IRQ], pic[STM32_I2C2_ER_IRQ]);
+    stm32_create_i2c_dev(stm32_container, STM32_I2C3, 0x40005c00, pic[STM32_I2C3_EV_IRQ], pic[STM32_I2C3_ER_IRQ]);
+
+/*    stm32_create_fake_device(stm32_container, STM32_I2C1, 0x40005400, 0x400);
     stm32_create_fake_device(stm32_container, STM32_I2C2, 0x40005800, 0x400);
     stm32_create_fake_device(stm32_container, STM32_I2C3, 0x40005c00, 0x400);*/
  

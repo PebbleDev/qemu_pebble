@@ -563,6 +563,12 @@ static void stm32_rcc_RCC_APB2ENR_write(Stm32Rcc *s, uint32_t new_value,
 static void stm32_rcc_RCC_APB1ENR_write(Stm32Rcc *s, uint32_t new_value,
                     bool init)
 {
+    stm32_rcc_periph_enable(s, new_value, init, STM32_I2C1,
+                            RCC_APB1ENR_I2C1EN_BIT);
+    stm32_rcc_periph_enable(s, new_value, init, STM32_I2C2,
+                            RCC_APB1ENR_I2C2EN_BIT);
+    stm32_rcc_periph_enable(s, new_value, init, STM32_I2C3,
+                            RCC_APB1ENR_I2C3EN_BIT);
     stm32_rcc_periph_enable(s, new_value, init, STM32_UART5,
                             RCC_APB1ENR_USART5EN_BIT);
     stm32_rcc_periph_enable(s, new_value, init, STM32_UART4,
@@ -985,6 +991,10 @@ static void stm32_rcc_init_clk(Stm32Rcc *s)
     s->PERIPHCLK[STM32_SPI1] = clktree_create_clk("SPI1", 1, 1, false, CLKTREE_NO_MAX_FREQ, 0, s->PCLK2, NULL);
     s->PERIPHCLK[STM32_SPI2] = clktree_create_clk("SPI2", 1, 1, false, CLKTREE_NO_MAX_FREQ, 0, s->PCLK1, NULL);
     s->PERIPHCLK[STM32_SPI3] = clktree_create_clk("SPI3", 1, 1, false, CLKTREE_NO_MAX_FREQ, 0, s->PCLK1, NULL);
+
+    s->PERIPHCLK[STM32_I2C1] = clktree_create_clk("I2C1", 1, 1, false, CLKTREE_NO_MAX_FREQ, 0, s->PCLK2, NULL);
+    s->PERIPHCLK[STM32_I2C2] = clktree_create_clk("I2C2", 1, 1, false, CLKTREE_NO_MAX_FREQ, 0, s->PCLK1, NULL);
+    s->PERIPHCLK[STM32_I2C3] = clktree_create_clk("I2C3", 1, 1, false, CLKTREE_NO_MAX_FREQ, 0, s->PCLK1, NULL);
 
     s->PERIPHCLK[STM32_TIM1] = clktree_create_clk("TIM1", 1, 1, false, CLKTREE_NO_MAX_FREQ, 0, s->PCLK1, NULL);
     s->PERIPHCLK[STM32_TIM2] = clktree_create_clk("TIM2", 1, 1, false, CLKTREE_NO_MAX_FREQ, 0, s->PCLK1, NULL);
