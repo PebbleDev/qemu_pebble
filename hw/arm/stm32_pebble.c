@@ -28,10 +28,39 @@
 #include "hw/arm/arm.h"
 #include "hw/devices.h"
 #include "ui/console.h"
+#include "ui/keymaps.h"
 #include "sysemu/sysemu.h"
 #include "hw/boards.h"
 #include "hw/ssi.h"
 #include "hw/irq.h"
+
+typedef struct
+{
+    qemu_irq outputs[4];
+} KbdState;
+
+static void stm32_pebble_key_event(void *opaque, int keycode)
+{
+    KbdState *s = (KbdState*)opaque;
+    qemu_irq irq;
+    switch(keycode & SCANCODE_KEYCODEMASK)
+    {
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+            irq = s->outputs[(keycode & SCANCODE_KEYCODEMASK) - 2];
+            if(keycode & SCANCODE_UP)
+                qemu_set_irq(irq, 0);
+            else
+                qemu_set_irq(irq, 1);
+            break;
+
+        default:
+            printf("Pebble: Unknown key pressed %c (0x%X)\n", keycode & SCANCODE_KEYCODEMASK, keycode );
+            break;
+    }
+}
 
 static void stm32_pebble_init(QEMUMachineInitArgs *args)
 {
@@ -49,7 +78,6 @@ static void stm32_pebble_init(QEMUMachineInitArgs *args)
     DeviceState *uart3 = DEVICE(object_resolve_path("/machine/stm32/uart[3]", NULL));
     DeviceState *spi1 = DEVICE(object_resolve_path("/machine/stm32/spi[0]", NULL));
     DeviceState *spi2 = DEVICE(object_resolve_path("/machine/stm32/spi[1]", NULL));
-
     assert(gpio_a);
     assert(gpio_b);
     assert(gpio_c);
@@ -84,8 +112,19 @@ static void stm32_pebble_init(QEMUMachineInitArgs *args)
     qdev_connect_gpio_out(gpio_b, 12, lcd_cs_line);
 
     // For some reason pebble requires this pin High
-    qemu_irq gpioa_2 = qdev_get_gpio_in(gpio_a, 2);
-    qemu_set_irq(gpioa_2, 1);
+/*    qemu_irq gpioa_2 = qdev_get_gpio_in(gpio_a, 2);
+    qemu_set_irq(gpioa_2, 1);*/
+/*
+    qemu_irq gpioc_3 = qdev_get_gpio_in(gpio_c, 3);
+    qemu_set_irq(gpioc_3, 1);*/
+
+    KbdState* kbdstate = malloc(sizeof(KbdState));
+    kbdstate->outputs[0] = qdev_get_gpio_in(gpio_c, 3);
+    kbdstate->outputs[1] = qdev_get_gpio_in(gpio_c, 6);
+    kbdstate->outputs[2] = qdev_get_gpio_in(gpio_c, 11);
+    kbdstate->outputs[3] = qdev_get_gpio_in(gpio_c, 12);
+
+    qemu_add_kbd_event_handler(stm32_pebble_key_event, kbdstate);
  }
 
 static QEMUMachine stm32_pebble_machine = {
