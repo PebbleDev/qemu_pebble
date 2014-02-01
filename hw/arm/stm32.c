@@ -272,7 +272,11 @@ qemu_irq *stm32_init(
     stm32_create_spi_dev(stm32_container, STM32_SPI2, 0x40003800, pic[STM32_SPI2_IRQ]);
     stm32_create_spi_dev(stm32_container, STM32_SPI3, 0x40003c00, pic[STM32_SPI3_IRQ]);
 
-    stm32_create_fake_device(stm32_container, STM32_SYSCFG, 0x40013800, 0x400);
+    DeviceState *syscfg_dev = qdev_create(NULL, "stm32-syscfg");
+    object_property_add_child(stm32_container, "syscfg", OBJECT(syscfg_dev), NULL);
+    stm32_init_periph(syscfg_dev, STM32_SYSCFG, 0x40013800, NULL);
+
+//    stm32_create_fake_device(stm32_container, STM32_SYSCFG, 0x40013800, 0x400);
     stm32_create_fake_device(stm32_container, STM32_WWDG, 0x40002c00, 0x400);
 
     stm32_create_fake_device(stm32_container, STM32_FLASH, 0x40023C00, 0x400);
