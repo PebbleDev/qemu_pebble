@@ -32,6 +32,7 @@
 #include "sysemu/sysemu.h"
 #include "hw/boards.h"
 #include "hw/ssi.h"
+#include "hw/i2c/i2c.h"
 #include "hw/irq.h"
 
 typedef struct
@@ -78,12 +79,16 @@ static void stm32_pebble_init(QEMUMachineInitArgs *args)
     DeviceState *uart3 = DEVICE(object_resolve_path("/machine/stm32/uart[3]", NULL));
     DeviceState *spi1 = DEVICE(object_resolve_path("/machine/stm32/spi[0]", NULL));
     DeviceState *spi2 = DEVICE(object_resolve_path("/machine/stm32/spi[1]", NULL));
+    DeviceState *i2c1 = DEVICE(object_resolve_path("/machine/stm32/i2c[0]", NULL));
+    DeviceState *i2c2 = DEVICE(object_resolve_path("/machine/stm32/i2c[1]", NULL));
     assert(gpio_a);
     assert(gpio_b);
     assert(gpio_c);
     assert(uart3);
     assert(spi1);
     assert(spi2);
+    assert(i2c1);
+    assert(i2c2);
 
     /* Connect RS232 to UART */
     stm32_uart_connect(
@@ -110,10 +115,14 @@ static void stm32_pebble_init(QEMUMachineInitArgs *args)
     assert(lcd_dev);
     qemu_irq lcd_cs_line = qdev_get_gpio_in(lcd_dev, 0);
     qdev_connect_gpio_out(gpio_b, 12, lcd_cs_line);
+    i2c_bus *i2cbus1 = (i2c_bus *)qdev_get_child_bus(i2c1, "i2c");
+    i2c_create_slave(i2cbus1, "lis3dh", 0x19);
+    i2c_bus *i2cbus2 = (i2c_bus *)qdev_get_child_bus(i2c2, "i2c");
+    i2c_create_slave(i2cbus2, "mag3110", 0xE);
 
     // For some reason pebble requires this pin High
-/*    qemu_irq gpioa_2 = qdev_get_gpio_in(gpio_a, 2);
-    qemu_set_irq(gpioa_2, 1);*/
+    qemu_irq gpioa_2 = qdev_get_gpio_in(gpio_a, 2);
+    qemu_set_irq(gpioa_2, 1);
 /*
     qemu_irq gpioc_3 = qdev_get_gpio_in(gpio_c, 3);
     qemu_set_irq(gpioc_3, 1);*/
