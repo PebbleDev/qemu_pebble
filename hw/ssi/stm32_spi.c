@@ -29,7 +29,7 @@
 
 
 /* See README for DEBUG details. */
-#define DEBUG_STM32_SPI
+//#define DEBUG_STM32_SPI
 
 #ifdef DEBUG_STM32_SPI
 #define DPRINTF(fmt, ...)                                       \
