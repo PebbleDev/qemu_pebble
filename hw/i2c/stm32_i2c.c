@@ -123,7 +123,9 @@
 
 #if STM32_I2C_DEBUG
 #define DPRINT(fmt, args...)              \
-    do { fprintf(stderr, "STM32_I2C: "fmt, ## args); } while (0)
+    do { fprintf(stderr, "STM32_I2C[%s]: ", stm32_periph_name(s->periph)); fprintf(stderr, fmt, ## args); } while (0)
+
+static void stm32_i2c_reset(DeviceState *d);
 
 static const char *stm32_i2c_get_regname(unsigned offset)
 {
@@ -162,6 +164,8 @@ enum I2CState
     I2C_NACKED_ADDR,
     I2C_WAIT_ADDRESS,
     I2C_TRANSMIT_BYTES,
+    I2C_RECEIVE_BYTES,
+    I2C_RECEIVE_STOP,
 };
 
 typedef struct Stm32I2CState {
@@ -173,6 +177,7 @@ typedef struct Stm32I2CState {
     stm32_periph_t periph;
     bool enabled;
     enum I2CState state;
+    bool SR1_READ;
     uint16_t
         I2C_CR1,
         I2C_CR2,
@@ -208,38 +213,35 @@ static inline void stm32_i2c_raise_interrupt(Stm32I2CState *s)
     }
 
     if(raise_event)
+    {
+        DPRINT("Raising Event\n");
         qemu_irq_raise(s->irq[0]);
+    }
     if(raise_error)
+    {
+        DPRINT("Raising error\n");
         qemu_irq_raise(s->irq[1]);
+    }
 }
 
-static void stm32_i2c_data_receive(void *opaque)
+static uint32_t stm32_i2c_I2C_DR_read(Stm32I2CState *s)
 {
-    Stm32I2CState *s = (Stm32I2CState *)opaque;
-//    int ret;
 
-    s->scl_free = false;
-/*    s->i2cstat &= ~I2CSTAT_LAST_BIT;
-    ret = i2c_recv(s->bus);
-    if (ret < 0 && (s->i2ccon & I2CCON_ACK_GEN)) {
-        s->i2cstat |= I2CSTAT_LAST_BIT;  // Data is not acknowledged
-    } else {
-        s->data = ret;
-    }*/
-    stm32_i2c_raise_interrupt(s);
-}
+    uint32_t value;
+    switch(s->state)
+    {
 
-static void stm32_i2c_data_send(void *opaque)
-{
-    Stm32I2CState *s = (Stm32I2CState *)opaque;
-
-/*    s->I2C_SR1 |
-    s->i2cstat &= ~I2CSTAT_LAST_BIT;
-    s->scl_free = false;
-    if (i2c_send(s->bus, s->i2cds) < 0 && (s->i2ccon & I2CCON_ACK_GEN)) {
-        s->i2cstat |= I2CSTAT_LAST_BIT;
-    }*/
-    stm32_i2c_raise_interrupt(s);
+        case I2C_RECEIVE_STOP:
+            DPRINT("Doing a last stop read\n");
+            s->state = I2C_NONE;
+        case I2C_RECEIVE_BYTES:
+            value = i2c_recv(s->bus);
+            break;
+        default:
+            hw_error("Read from DR in invalid state!?\n");
+            break;
+    }
+    return value;
 }
 
 
@@ -259,22 +261,29 @@ static void stm32_i2c_I2C_DR_write(Stm32I2CState *s, uint32_t new_value)
             {
                 DPRINT("Not Acked by slave!? WADTODO!?\n");
                 s->state = I2C_NACKED_ADDR;
+                hw_error("Start transfer fail!?");
             }
             else
             {
-                s->I2C_SR1 |= I2C_SR1_TXE_BIT & I2C_SR1_ADDR_BIT;
-                s->I2C_SR1 &= ~I2C_SR1_SB_BIT;
-                s->I2C_SR2 |= (!recv) << I2C_SR2_TRA_BIT;
-
-                s->state = I2C_TRANSMIT_BYTES;
+                DPRINT("Address received, starting transfer to %u, Recv=%u\n", addr, recv);
+                s->I2C_SR1 |= BIT(I2C_SR1_ADDR_BIT) | ((!recv) << I2C_SR1_TXE_BIT) | recv << I2C_SR1_RXNE_BIT;
+                s->I2C_SR1 &= ~BIT(I2C_SR1_SB_BIT);
+                s->I2C_SR2 |= ((!recv) << I2C_SR2_TRA_BIT) | BIT(I2C_SR2_BUSY_BIT) | BIT(I2C_SR2_MSL_BIT);
+                if(recv)
+                    s->state = I2C_RECEIVE_BYTES;
+                else
+                    s->state = I2C_TRANSMIT_BYTES;
+                s->addr = 0x0;
             }
         }
         break;
         case I2C_TRANSMIT_BYTES:
             if(i2c_send(s->bus, new_value & 0xff))
             {
-                DPRINT("i2c_send == True\n");
+                hw_error("I2C SEND FAILED");
             }
+            s->I2C_SR1 |= BIT(I2C_SR1_TXE_BIT);
+            s->I2C_SR2 |= BIT(I2C_SR2_MSL_BIT) | BIT(I2C_SR2_BUSY_BIT) | BIT(I2C_SR2_TRA_BIT);
             break;
         default:
             hw_error("Unsupported I2C state when writing DR!?\n");
@@ -287,30 +296,54 @@ static void stm32_i2c_I2C_CR1_write(Stm32I2CState *s, uint32_t new_value)
     uint32_t tmpval;
 
     tmpval = extract32(new_value, I2C_CR1_PE_BIT, 1);
-    if(!s->enabled && tmpval)
+    DPRINT("Enable [Was: %u] = %u\n", s->enabled, tmpval);
+    if(s->enabled == 0 && tmpval == 1)
     {
+        DPRINT("Enabling I2C\n");
+    } else
+    if(s->enabled == 1 && tmpval == 0)
+    {
+        DPRINT("Disabling I2C\n");
+        s->I2C_SR1 = 0x0;
     }
     s->enabled = tmpval;
+
     tmpval = extract32(new_value, I2C_CR1_START_BIT, 1);
     if(tmpval)
     {
         DPRINT("Start bit set, Waiting for address!\n");
-        s->I2C_SR1 |= I2C_SR1_SB_BIT;
-        s->I2C_SR2 |= I2C_SR2_MSL_BIT;
+        s->I2C_SR1 |= BIT(I2C_SR1_SB_BIT);
+        s->I2C_SR2 |= BIT(I2C_SR2_MSL_BIT) | BIT(I2C_SR2_BUSY_BIT);
+        DPRINT("I2C_SR1: 0x%04X, I2C_SR2: 0x%04X\n", s->I2C_SR1, s->I2C_SR2);
         s->state = I2C_WAIT_ADDRESS;
+//        new_value &= ~BIT(I2C_CR1_START_BIT);
     }
-//    s->I2C_CR1 = new_value & 0xFFFF;
-    if(extract32(new_value, I2C_CR1_SWRST_BIT, 1))
+    tmpval = extract32(new_value, I2C_CR1_STOP_BIT, 1);
+    if(tmpval)
     {
-        DPRINT("Reset due to failure\n");
+        DPRINT("Stop bit set, ending transfer\n");
+        //s->I2C_SR1 |= BIT(I2C_SR_
+        i2c_end_transfer(s->bus);
+        new_value &= ~BIT(I2C_CR1_STOP_BIT);
+        s->I2C_SR2 &= ~BIT(I2C_SR2_BUSY_BIT);
+/*        if(s->state == I2C_RECEIVE_BYTES)
+            s->state = I2C_RECEIVE_STOP;
+        else*/
+            s->state = I2C_NONE;
     }
 
-    s->I2C_CR1 = new_value & 0xFFFF;
-    if(0)
+    if(extract32(new_value, I2C_CR1_SWRST_BIT, 1))
     {
-        stm32_i2c_data_send(s);
-        stm32_i2c_data_receive(s);
+        hw_error("Reset due to failure\n");
+        stm32_i2c_reset((DeviceState *)s);
     }
+    if(extract32(new_value, I2C_CR1_ACK_BIT, 1))
+    {
+        DPRINT("Enabling ACK\n");
+    }
+    s->I2C_CR1 = new_value;
+    DPRINT("I2C_CR1 == 0x%X\n", s->I2C_CR1);
+
     stm32_i2c_raise_interrupt(s);
 }
 
@@ -327,6 +360,7 @@ static void stm32_i2c_I2C_OAR1_write(Stm32I2CState *s, uint32_t new_value)
     if(tmpval)
     {
         s->addr = tmpval;
+        DPRINT("Set address to %u\n", s->addr);
     }
 
 }
@@ -354,6 +388,9 @@ static uint64_t stm32_i2c_read(void *opaque, hwaddr offset,
         STM32_NOT_IMPL_REG(offset, size);
         break;
     case I2C_DR_OFFSET:
+        value = stm32_i2c_I2C_DR_read(s);
+        break;
+//        hw_error("I2C read not implemented");
 /*        value = s->i2cds;
         s->scl_free = true;
         if (STM32_I2C_MODE(s->i2cstat) == I2CMODE_MASTER_Rx &&
@@ -361,12 +398,25 @@ static uint64_t stm32_i2c_read(void *opaque, hwaddr offset,
                !(s->i2ccon & I2CCON_INT_PEND)) {
             stm32_i2c_data_receive(s);
         }*/
-        break;
     case I2C_SR1_OFFSET:
         value = s->I2C_SR1;
+        s->SR1_READ = true;
         break;
     case I2C_SR2_OFFSET:
         value = s->I2C_SR2;
+        if(s->SR1_READ)
+        {
+            s->I2C_SR1 = s->I2C_SR2 = 0x0;
+            if(s->state == I2C_TRANSMIT_BYTES)
+            {
+                s->I2C_SR1 |= BIT(I2C_SR1_TXE_BIT) | BIT(I2C_SR1_BTF_BIT);
+                s->I2C_SR2 |= BIT(I2C_SR2_MSL_BIT) | BIT(I2C_SR2_BUSY_BIT) | BIT(I2C_SR2_TRA_BIT);
+            } else if (s->state == I2C_RECEIVE_BYTES)
+            {
+                s->I2C_SR1 |= BIT(I2C_SR1_RXNE_BIT);
+                s->I2C_SR2 |= BIT(I2C_SR2_MSL_BIT) | BIT(I2C_SR2_BUSY_BIT);
+            }
+        }
         break;
     case I2C_CCR_OFFSET:
         value = s->I2C_CCR;
@@ -376,9 +426,12 @@ static uint64_t stm32_i2c_read(void *opaque, hwaddr offset,
         break;
     default:
         value = 0;
-        DPRINT("ERROR: Bad read offset 0x%x\n", (unsigned int)offset);
+        hw_error("ERROR: Bad read offset 0x%x\n", (unsigned int)offset);
         break;
     }
+
+    if(offset != I2C_SR1_OFFSET)
+        s->SR1_READ = false;
 
     DPRINT("read %s [0x%02x] -> 0x%02x\n", stm32_i2c_get_regname(offset),
             (unsigned int)offset, value);
@@ -401,7 +454,6 @@ static void stm32_i2c_write(void *opaque, hwaddr offset,
         stm32_i2c_I2C_CR1_write(s, v);
         break;
     case I2C_CR2_OFFSET:
-        // 
         s->I2C_CR2 = v;
         DPRINT("Setting frequency to %u\n", extract32(v, I2C_CR2_FREQ_START, I2C_CR2_FREQ_LENGTH));
 
@@ -416,8 +468,10 @@ static void stm32_i2c_write(void *opaque, hwaddr offset,
         stm32_i2c_I2C_DR_write(s, v);
         break;
     case I2C_SR1_OFFSET:
+        hw_error("Write to SR1");
         break;
     case I2C_SR2_OFFSET:
+        hw_error("Write to SR2");
         break;
     case I2C_CCR_OFFSET:
         s->I2C_CCR = v;
@@ -536,13 +590,14 @@ static void stm32_i2c_reset(DeviceState *d)
 {
     Stm32I2CState *s = STM32_I2C(d);
 
-/*    s->i2ccon  = 0x00;
-    s->i2cstat = 0x00;
-    s->i2cds   = 0xFF;
-    s->i2clc   = 0x00;
-    s->i2cadd  = 0xFF;*/
-    s->scl_free = true;
     s->state = I2C_NONE;
+    s->I2C_CR1 = 0;
+    s->I2C_CR2 = 0;
+    s->I2C_SR1 = 0;
+    s->I2C_SR2 = 0;
+    s->I2C_CCR = 0;
+    s->I2C_TRISE = 0;
+    s->addr = 0;
 }
 
 static Property stm32_i2c_properties[] = {
