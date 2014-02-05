@@ -528,16 +528,17 @@ static Property stm32_i2c_properties[] = {
 };
 
 
-static int stm32_i2c_realize(SysBusDevice *dev)
+static int stm32_i2c_realize(SysBusDevice *sbd)
 {
+    DeviceState *dev = DEVICE(sbd);
     Stm32I2CState *s = STM32_I2C(dev);
 
-    memory_region_init_io(&s->iomem, &stm32_i2c_ops, s, TYPE_STM32_I2C,
+    memory_region_init_io(&s->iomem, NULL, &stm32_i2c_ops, s, TYPE_STM32_I2C,
                           STM32_I2C_MEM_SIZE);
-    sysbus_init_mmio(dev, &s->iomem);
-    sysbus_init_irq(dev, &s->irq[0]);
-    sysbus_init_irq(dev, &s->irq[1]);
-    s->bus = i2c_init_bus(&dev->qdev, "i2c");
+    sysbus_init_mmio(sbd, &s->iomem);
+    sysbus_init_irq(sbd, &s->irq[0]);
+    sysbus_init_irq(sbd, &s->irq[1]);
+    s->bus = i2c_init_bus(dev, "i2c");
     return 0;
 }
 

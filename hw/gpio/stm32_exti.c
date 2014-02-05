@@ -23,6 +23,10 @@
 #include "qemu/bitops.h"
 
 
+#define TYPE_STM32_EXTI_DEVICE "stm32-exti"
+#define STM32_EXTI_DEVICE(obj) \
+    OBJECT_CHECK(Stm32Exti, (obj), TYPE_STM32_EXTI_DEVICE)
+
 
 
 /* DEFINITIONS*/
@@ -286,7 +290,7 @@ static const MemoryRegionOps stm32_exti_ops = {
 
 static void stm32_exti_reset(DeviceState *dev)
 {
-    Stm32Exti *s = FROM_SYSBUS(Stm32Exti, SYS_BUS_DEVICE(dev));
+    Stm32Exti *s = STM32_EXTI_DEVICE(dev);
 
     s->EXTI_IMR = 0x00000000;
     s->EXTI_RTSR = 0x00000000;
@@ -298,22 +302,22 @@ static void stm32_exti_reset(DeviceState *dev)
 
 /* DEVICE INITIALIZATION */
 
-static int stm32_exti_init(SysBusDevice *dev)
+static int stm32_exti_init(SysBusDevice *sbd)
 {
     int i;
+    DeviceState *dev = DEVICE(sbd);
+    Stm32Exti *s = STM32_EXTI_DEVICE(dev);
 
-    Stm32Exti *s = FROM_SYSBUS(Stm32Exti, dev);
-
-    memory_region_init_io(&s->iomem, &stm32_exti_ops, s,
+    memory_region_init_io(&s->iomem, NULL, &stm32_exti_ops, s,
             "exti", 0x03ff);
-    sysbus_init_mmio(dev, &s->iomem);
+    sysbus_init_mmio(sbd, &s->iomem);
 
     for(i = 0; i < EXTI_IRQ_COUNT; i++) {
-        sysbus_init_irq(dev, &s->irq[i]);
+        sysbus_init_irq(sbd, &s->irq[i]);
     }
 
     /* Create the handlers to handle GPIO input pin changes. */
-    qdev_init_gpio_in(&dev->qdev, stm32_exti_gpio_in_handler, STM32_GPIO_PIN_COUNT);
+    qdev_init_gpio_in(dev, stm32_exti_gpio_in_handler, STM32_GPIO_PIN_COUNT);
 
     return 0;
 }

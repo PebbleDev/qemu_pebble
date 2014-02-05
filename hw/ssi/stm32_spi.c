@@ -28,6 +28,10 @@
 #include "hw/ssi.h"
 
 
+#define TYPE_STM32_SPI_DEVICE "stm32-spi"
+#define STM32_SPI_DEVICE(obj) \
+    OBJECT_CHECK(Stm32Spi, (obj), TYPE_STM32_SPI_DEVICE)
+
 /* See README for DEBUG details. */
 //#define DEBUG_STM32_SPI
 
@@ -250,7 +254,7 @@ static const MemoryRegionOps stm32_spi_ops = {
 
 static void stm32_spi_reset(DeviceState *dev)
 {
-    Stm32Spi *s = FROM_SYSBUS(Stm32Spi, SYS_BUS_DEVICE(dev));
+    Stm32Spi *s = STM32_SPI_DEVICE(dev);
 
     s->SPI_CR1 = 0x0000;
     s->SPI_CR2 = 0x0000;
@@ -270,7 +274,7 @@ static Property stm32_spi_properties[] = {
 static void stm32_spi_realize(DeviceState *dev, Error **errp)
 {
     SysBusDevice *sbd = SYS_BUS_DEVICE(dev);
-    Stm32Spi *s = FROM_SYSBUS(Stm32Spi, sbd);
+    Stm32Spi *s = STM32_SPI_DEVICE(dev);
     int i;
 
     s->spi = ssi_create_bus(dev, "spi");
@@ -283,7 +287,7 @@ static void stm32_spi_realize(DeviceState *dev, Error **errp)
         sysbus_init_irq(sbd, &s->cs_lines[i]);
     }
 
-    memory_region_init_io(&s->iomem, &stm32_spi_ops, s,
+    memory_region_init_io(&s->iomem, NULL, &stm32_spi_ops, s,
                           "stm32-spi", 0x400);
 
     sysbus_init_mmio(sbd, &s->iomem);

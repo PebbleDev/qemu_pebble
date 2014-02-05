@@ -30,18 +30,19 @@
 void stm32_hw_warn(const char *fmt, ...)
 {
     va_list ap;
-    CPUArchState *env;
-    CPUState *cpu;
+/*    CPUArchState *env;
+    CPUState *cpu;*/
 
     va_start(ap, fmt);
     fprintf(stderr, "qemu stm32: hardware warning: ");
     vfprintf(stderr, fmt, ap);
     fprintf(stderr, "\n");
-    for(env = first_cpu; env != NULL; env = env->next_cpu) {
+    cpu_dump_state(first_cpu, stderr, fprintf, 0);
+
+/*    for(env = first_cpu; env != NULL; env = env->next_cpu) {
         cpu = ENV_GET_CPU(env);
         fprintf(stderr, "CPU #%d:\n", cpu_index(cpu));
-        cpu_dump_state(env, stderr, fprintf, 0);
-    }
+    }*/
     va_end(ap);
 }
 
@@ -230,6 +231,7 @@ qemu_irq *stm32_init(
     /* TODO: Parameterize the base address of the aliased memory. */
     memory_region_init_alias(
             flash_alias_mem,
+            NULL,
             "stm32-flash-alias-mem",
             address_space_mem,
             0,

@@ -327,7 +327,7 @@ bad_reg:
     hw_error("NVIC: Bad read offset 0x%x\n", offset);
 }
 
-static void nvic_writel(void *opaque, uint32_t offset, uint32_t value)
+static void nvic_writel(nvic_state *s, uint32_t offset, uint32_t value)
 {
     ARMCPU *cpu;
     uint32_t oldval;
@@ -486,7 +486,7 @@ static void nvic_sysreg_write(void *opaque, hwaddr addr,
         nvic_writel(s, offset, value);
         return;
     } else if (size == 1) {
-        nvic_writeb(opaque, offset, value);
+        nvic_writeb(s, offset, value);
         return;
     }
     qemu_log_mask(LOG_GUEST_ERROR,

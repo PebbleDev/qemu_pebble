@@ -100,7 +100,7 @@ static void stm32_pebble_init(QEMUMachineInitArgs *args)
     assert(spibus);
     assert(spibusdev);
 
-    DeviceState *flash_dev = ssi_create_slave(spibus, "n25q032a");
+    DeviceState *flash_dev = ssi_create_slave(spibus, "n25q032a11");
     assert(flash_dev);
 
     qemu_irq cs_line = qdev_get_gpio_in(flash_dev, 0);
@@ -140,7 +140,9 @@ static QEMUMachine stm32_pebble_machine = {
     .name = "stm32-pebble",
     .desc = "STM32 Pebble SmartWatch",
     .init = stm32_pebble_init,
-    DEFAULT_MACHINE_OPTIONS,
+    .block_default_type = IF_MTD,
+    .max_cpus = 1,
+    .no_sdcard = 1,
 };
 
 

@@ -26,6 +26,10 @@
 #include "sysemu/sysemu.h"
 #include "hw/arm/stm32.h"
 
+#define TYPE_STM32_TIM25_DEVICE "stm32-tim25"
+#define STM32_TIM25_DEVICE(obj) \
+    OBJECT_CHECK(STM32TIM25State, (obj), TYPE_STM32_TIM25_DEVICE)
+
 #define DEBUG_TIM25
 
 #ifdef DEBUG_TIM25
@@ -247,9 +251,9 @@ static Property stm32_tim25_properties[] = {
 
 static int stm32_tim25_init(SysBusDevice *dev)
 {
-    STM32TIM25State *s = FROM_SYSBUS(STM32TIM25State, dev);
+    STM32TIM25State *s = STM32_TIM25_DEVICE(dev);
 
-    memory_region_init_io(&s->iomem, &stm32_tim25_ops, s, "stm32-tim25", 0x400);
+    memory_region_init_io(&s->iomem, NULL, &stm32_tim25_ops, s, "stm32-tim25", 0x400);
     sysbus_init_mmio(dev, &s->iomem);
     sysbus_init_irq(dev, &s->irq);
     return 0;

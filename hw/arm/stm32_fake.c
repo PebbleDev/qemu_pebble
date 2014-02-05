@@ -28,6 +28,10 @@
 #include "qemu/bitops.h"
 #include <stdio.h>
 
+#define TYPE_STM32_FAKE_DEVICE "stm32-fake"
+#define STM32_FAKE_DEVICE(obj) \
+    OBJECT_CHECK(Stm32Fake, (obj), TYPE_STM32_FAKE_DEVICE)
+
 
 /* DEFINITIONS*/
 
@@ -84,9 +88,9 @@ static const MemoryRegionOps stm32_fake_ops = {
 
 static int stm32_fake_init(SysBusDevice *dev)
 {
-    Stm32Fake *s = FROM_SYSBUS(Stm32Fake, dev);
+    Stm32Fake *s = STM32_FAKE_DEVICE(dev);
 
-    memory_region_init_io(&s->iomem, &stm32_fake_ops, s,
+    memory_region_init_io(&s->iomem, NULL, &stm32_fake_ops, s,
                           "fake", s->size);
 
     sysbus_init_mmio(dev, &s->iomem);

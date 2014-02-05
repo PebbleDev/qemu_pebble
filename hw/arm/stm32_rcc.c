@@ -28,6 +28,10 @@
 #include <stdio.h>
 
 
+#define TYPE_STM32_RCC_DEVICE "stm32-rcc"
+#define STM32_RCC_DEVICE(obj) \
+    OBJECT_CHECK(Stm32Rcc, (obj), TYPE_STM32_RCC_DEVICE)
+
 /* DEFINITIONS*/
 
 /* See README for DEBUG details. */
@@ -837,7 +841,7 @@ static const MemoryRegionOps stm32_rcc_ops = {
 
 static void stm32_rcc_reset(DeviceState *dev)
 {
-    Stm32Rcc *s = FROM_SYSBUS(Stm32Rcc, SYS_BUS_DEVICE(dev));
+    Stm32Rcc *s = STM32_RCC_DEVICE(dev);
 
     stm32_rcc_RCC_CR_write(s, 0x00000083, true);
     stm32_rcc_RCC_PLLCFGR_write(s, 0x24003010, true);
@@ -1037,9 +1041,9 @@ static void stm32_rcc_init_clk(Stm32Rcc *s)
 
 static int stm32_rcc_init(SysBusDevice *dev)
 {
-    Stm32Rcc *s = FROM_SYSBUS(Stm32Rcc, dev);
+    Stm32Rcc *s = STM32_RCC_DEVICE(dev);
 
-    memory_region_init_io(&s->iomem, &stm32_rcc_ops, s,
+    memory_region_init_io(&s->iomem, NULL, &stm32_rcc_ops, s,
                           "rcc", 0x400);
 
     sysbus_init_mmio(dev, &s->iomem);

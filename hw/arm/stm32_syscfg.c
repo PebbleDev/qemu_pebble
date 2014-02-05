@@ -26,6 +26,11 @@
 #include <stdio.h>
 
 
+#define TYPE_STM32_SYSCFG_DEVICE "stm32-syscfg"
+#define STM32_SYSCFG_DEVICE(obj) \
+    OBJECT_CHECK(Stm32Syscfg, (obj), TYPE_STM32_SYSCFG_DEVICE)
+
+
 /* DEFINITIONS*/
 
 #define DEBUG_STM32_SYSCFG
@@ -145,17 +150,17 @@ static const MemoryRegionOps stm32_syscfg_ops = {
 
 static void stm32_syscfg_reset(DeviceState *dev)
 {
-    Stm32Syscfg *s = FROM_SYSBUS(Stm32Syscfg, SYS_BUS_DEVICE(dev));
+    Stm32Syscfg *s = STM32_SYSCFG_DEVICE(dev);
     memset(s->exti, 0, sizeof(s->exti));
 }
 
 
 static int stm32_syscfg_init(SysBusDevice *dev)
 {
-    Stm32Syscfg *s = FROM_SYSBUS(Stm32Syscfg, dev);
+    Stm32Syscfg *s = STM32_SYSCFG_DEVICE(dev);
     uint8_t i;
     char path[1024];
-    memory_region_init_io(&s->iomem, &stm32_syscfg_ops, s,
+    memory_region_init_io(&s->iomem, NULL, &stm32_syscfg_ops, s,
                           "syscfg", 0x400);
 
     sysbus_init_mmio(dev, &s->iomem);

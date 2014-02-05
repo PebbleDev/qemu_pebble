@@ -40,6 +40,11 @@
 
 #include "hw/arm/stm32.h"
 
+#define TYPE_STM32_RTC_DEVICE "stm32-rtc"
+#define STM32_RTC_DEVICE(obj) \
+    OBJECT_CHECK(STM32RTCState, (obj), TYPE_STM32_RTC_DEVICE)
+
+
 #define DEBUG_RTC 1
 
 #if DEBUG_RTC
@@ -727,9 +732,10 @@ static const MemoryRegionOps stm32_rtc_ops = {
 /*
  * RTC timer initialization
  */
-static int stm32_rtc_init(SysBusDevice *dev)
+static int stm32_rtc_init(SysBusDevice *sbd)
 {
-    STM32RTCState *s = FROM_SYSBUS(STM32RTCState, dev);
+    DeviceState *dev = DEVICE(sbd);
+    STM32RTCState *s = STM32_RTC_DEVICE(dev);
     QEMUBH *bh;
 
     bh = qemu_bh_new(stm32_rtc_tick, s);
@@ -741,13 +747,13 @@ static int stm32_rtc_init(SysBusDevice *dev)
     s->ptimer_1Hz = ptimer_init(bh);
     ptimer_set_freq(s->ptimer_1Hz, RTC_BASE_FREQ);
 
-    sysbus_init_irq(dev, &s->alarm_irq);
-    sysbus_init_irq(dev, &s->wkup_irq);
-    sysbus_init_irq(dev, &s->tamp_stamp_irq);
+    sysbus_init_irq(sbd, &s->alarm_irq);
+    sysbus_init_irq(sbd, &s->wkup_irq);
+    sysbus_init_irq(sbd, &s->tamp_stamp_irq);
 
-    memory_region_init_io(&s->iomem, &stm32_rtc_ops, s, "stm32-rtc",
+    memory_region_init_io(&s->iomem, NULL, &stm32_rtc_ops, s, "stm32-rtc",
             STM32_RTC_REG_MEM_SIZE);
-    sysbus_init_mmio(dev, &s->iomem);
+    sysbus_init_mmio(sbd, &s->iomem);
 
     return 0;
 }

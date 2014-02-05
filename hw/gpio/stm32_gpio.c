@@ -24,6 +24,11 @@
 #include "hw/arm/stm32.h"
 #include "qemu/bitops.h"
 
+
+#define TYPE_STM32_GPIO_DEVICE "stm32-gpio"
+#define STM32_GPIO_DEVICE(obj) \
+    OBJECT_CHECK(Stm32Gpio, (obj), TYPE_STM32_GPIO_DEVICE)
+
 /* See README for DEBUG details. */
 #define DEBUG_STM32_GPIO
 
@@ -451,22 +456,23 @@ uint8_t stm32_gpio_get_mode_bits(Stm32Gpio *s, unsigned pin) {
 
 /* DEVICE INITIALIZATION */
 
-static int stm32_gpio_init(SysBusDevice *dev)
+static int stm32_gpio_init(SysBusDevice *sbd)
 {
     unsigned pin;
-    Stm32Gpio *s = FROM_SYSBUS(Stm32Gpio, dev);
+    DeviceState *dev = DEVICE(sbd);
+    Stm32Gpio *s = STM32_GPIO_DEVICE(dev);
 
     s->stm32_rcc = (Stm32Rcc *)s->stm32_rcc_prop;
 
-    memory_region_init_io(&s->iomem, &stm32_gpio_ops, s,
+    memory_region_init_io(&s->iomem, NULL, &stm32_gpio_ops, s,
                           "gpio", 0x03ff);
-    sysbus_init_mmio(dev, &s->iomem);
+    sysbus_init_mmio(sbd, &s->iomem);
 
-    qdev_init_gpio_in(&dev->qdev, stm32_gpio_in_trigger, STM32_GPIO_PIN_COUNT);
-    qdev_init_gpio_out(&dev->qdev, s->out_irq, STM32_GPIO_PIN_COUNT);
+    qdev_init_gpio_in(dev, stm32_gpio_in_trigger, STM32_GPIO_PIN_COUNT);
+    qdev_init_gpio_out(dev, s->out_irq, STM32_GPIO_PIN_COUNT);
 
     for(pin = 0; pin < STM32_GPIO_PIN_COUNT; pin++) {
-        sysbus_init_irq(dev, &s->in_irq[pin]);
+        sysbus_init_irq(sbd, &s->in_irq[pin]);
     }
     s->in = 0;
 
