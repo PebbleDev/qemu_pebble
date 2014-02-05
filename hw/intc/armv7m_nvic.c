@@ -295,14 +295,14 @@ static uint32_t nvic_readl(nvic_state *s, uint32_t offset)
     case 0xd70: /* ISAR4.  */
         return 0x01310102;
 
-    case 0xd9c:
+/*    case 0xd9c:
     case 0xda0:
     case 0xda4:
     case 0xda8:
     case 0xdac:
     case 0xdb0:
-        return s->blahregs[offset- 0xd9c];
-        break;
+        return s->blahregs[offset - 0xd9c];
+        break;*/
     /* TODO: Implement debug registers.  */
     default:
         qemu_log_mask(LOG_GUEST_ERROR, "NVIC: Bad read offset 0x%x\n", offset);
@@ -421,14 +421,14 @@ static void nvic_writel(nvic_state *s, uint32_t offset, uint32_t value)
             gic_set_pending_private(&s->gic, 0, value & 0x1ff);
         }
         break;
-    case 0xd9c:
+/*    case 0xd9c:
     case 0xda0:
     case 0xda4:
     case 0xda8:
     case 0xdac:
     case 0xdb0:
-        s->blahregs[offset - 0xd9c] = value;
-        break;
+//        s->blahregs[offset - 0xd9c] = value;
+        break;*/
     default:
         qemu_log_mask(LOG_GUEST_ERROR,
                       "NVIC: Bad write offset 0x%x = 0x%08X\n", offset, value);

@@ -74,8 +74,8 @@ static uint32_t ls01x_lcd_transfer(SSISlave *dev, uint32_t data)
             }
             else
             {
-                DPRINTF("Writing to LineNum %d\n", data);
-                s->linenum = data;
+                DPRINTF("Writing to LineNum %d\n", data - 1);
+                s->linenum = data - 1;
                 s->linepos = 0;
                 s->state = LS01X_LCD_DATA;
             }
