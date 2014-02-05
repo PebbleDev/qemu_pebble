@@ -134,6 +134,11 @@ static void stm32_syscfg_write(void *opaque, hwaddr offset,
 static const MemoryRegionOps stm32_syscfg_ops = {
     .read = stm32_syscfg_read,
     .write = stm32_syscfg_write,
+    .valid.min_access_size = 2,
+    .valid.max_access_size = 4,
+    .impl.min_access_size = 2,
+    .impl.max_access_size = 4,
+
     .endianness = DEVICE_NATIVE_ENDIAN
 };
 

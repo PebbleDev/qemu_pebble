@@ -480,88 +480,6 @@ static void stm32_i2c_write(void *opaque, hwaddr offset,
         s->I2C_TRISE = v;
         break;
 
-/*
-    case I2CCON_ADDR:
-        s->i2ccon = (v & ~I2CCON_INT_PEND) | (s->i2ccon & I2CCON_INT_PEND);
-        if ((s->i2ccon & I2CCON_INT_PEND) && !(v & I2CCON_INT_PEND)) {
-            s->i2ccon &= ~I2CCON_INT_PEND;
-            qemu_irq_lower(s->irq);
-            if (!(s->i2ccon & I2CCON_INTRS_EN)) {
-                s->i2cstat &= ~I2CSTAT_START_BUSY;
-            }
-
-            if (s->i2cstat & I2CSTAT_START_BUSY) {
-                if (s->scl_free) {
-                    if (STM32_I2C_MODE(s->i2cstat) == I2CMODE_MASTER_Tx) {
-                        stm32_i2c_data_send(s);
-                    } else if (STM32_I2C_MODE(s->i2cstat) ==
-                            I2CMODE_MASTER_Rx) {
-                        stm32_i2c_data_receive(s);
-                    }
-                } else {
-                    s->i2ccon |= I2CCON_INT_PEND;
-                    qemu_irq_raise(s->irq);
-                }
-            }
-        }
-        break;
-    case I2CSTAT_ADDR:
-        s->i2cstat =
-                (s->i2cstat & I2CSTAT_START_BUSY) | (v & ~I2CSTAT_START_BUSY);
-
-        if (!(s->i2cstat & I2CSTAT_OUTPUT_EN)) {
-            s->i2cstat &= ~I2CSTAT_START_BUSY;
-            s->scl_free = true;
-            qemu_irq_lower(s->irq);
-            break;
-        }
-
-        // Nothing to do if in i2c slave mode 
-        if (!I2C_IN_MASTER_MODE(s->i2cstat)) {
-            break;
-        }
-
-        if (v & I2CSTAT_START_BUSY) {
-            s->i2cstat &= ~I2CSTAT_LAST_BIT;
-            s->i2cstat |= I2CSTAT_START_BUSY;    // Line is busy
-            s->scl_free = false;
-
-            // Generate start bit and send slave address
-            if (i2c_start_transfer(s->bus, s->i2cds >> 1, s->i2cds & 0x1) &&
-                    (s->i2ccon & I2CCON_ACK_GEN)) {
-                s->i2cstat |= I2CSTAT_LAST_BIT;
-            } else if (STM32_I2C_MODE(s->i2cstat) == I2CMODE_MASTER_Rx) {
-                stm32_i2c_data_receive(s);
-            }
-            stm32_i2c_raise_interrupt(s);
-        } else {
-            i2c_end_transfer(s->bus);
-            if (!(s->i2ccon & I2CCON_INT_PEND)) {
-                s->i2cstat &= ~I2CSTAT_START_BUSY;
-            }
-            s->scl_free = true;
-        }
-        break;
-    case I2CADD_ADDR:
-        if ((s->i2cstat & I2CSTAT_OUTPUT_EN) == 0) {
-            s->i2cadd = v;
-        }
-        break;
-    case I2CDS_ADDR:
-        if (s->i2cstat & I2CSTAT_OUTPUT_EN) {
-            s->i2cds = v;
-            s->scl_free = true;
-            if (STM32_I2C_MODE(s->i2cstat) == I2CMODE_MASTER_Tx &&
-                    (s->i2cstat & I2CSTAT_START_BUSY) &&
-                    !(s->i2ccon & I2CCON_INT_PEND)) {
-                stm32_i2c_data_send(s);
-            }
-        }
-        break;
-    case I2CLC_ADDR:
-        s->i2clc = v;
-        break;
-*/
     default:
         DPRINT("ERROR: Bad write offset 0x%x\n", (unsigned int)offset);
         break;
@@ -571,6 +489,10 @@ static void stm32_i2c_write(void *opaque, hwaddr offset,
 static const MemoryRegionOps stm32_i2c_ops = {
     .read = stm32_i2c_read,
     .write = stm32_i2c_write,
+    .valid.min_access_size = 2,
+    .valid.max_access_size = 4,
+    .impl.min_access_size = 2,
+    .impl.max_access_size = 4,
     .endianness = DEVICE_NATIVE_ENDIAN,
 };
 

@@ -75,6 +75,7 @@ static void stm32_exti_trigger(Stm32Exti *s, int line)
 {
     /* Make sure the interrupt for this EXTI line has been enabled. */
     if(s->EXTI_IMR & BIT(line)) {
+        fprintf(stderr, "Interrupt on line %d\n", line);
         /* Set the Pending flag for this line, which will trigger the interrupt
          * (if the flag isn't already set). */
         stm32_exti_change_EXTI_PR_bit(s, line, 1);

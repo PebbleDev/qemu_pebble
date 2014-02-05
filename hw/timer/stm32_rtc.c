@@ -417,8 +417,10 @@ static uint64_t stm32_rtc_read(void *opaque, hwaddr offset,
         case RTC_WPR_OFFSET:
         case RTC_TSTR_OFFSET:
         case RTC_RTC_TSDR_OFFSET:
-        case RTC_TAFCR_OFFSET:
             STM32_NOT_IMPL_REG(offset, size);
+            break;
+        case RTC_TAFCR_OFFSET:
+            value = 0;
             break;
         case RTC_PRER_OFFSET:
             value = s->RTC_PRER;
@@ -715,6 +717,10 @@ static void stm32_rtc_reset(DeviceState *d)
 static const MemoryRegionOps stm32_rtc_ops = {
     .read = stm32_rtc_read,
     .write = stm32_rtc_write,
+    .valid.min_access_size = 4,
+    .valid.max_access_size = 4,
+    .impl.min_access_size = 4,
+    .impl.max_access_size = 4,
     .endianness = DEVICE_NATIVE_ENDIAN,
 };
 

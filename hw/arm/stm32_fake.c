@@ -75,6 +75,10 @@ static void stm32_fake_write(void *opaque, hwaddr offset,
 static const MemoryRegionOps stm32_fake_ops = {
     .read = stm32_fake_read,
     .write = stm32_fake_write,
+    .valid.min_access_size = 1,
+    .valid.max_access_size = 4,
+    .impl.min_access_size = 1,
+    .impl.max_access_size = 4,
     .endianness = DEVICE_NATIVE_ENDIAN
 };
 

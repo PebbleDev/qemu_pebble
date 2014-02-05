@@ -26,7 +26,7 @@
 #include "hw/ssi.h"
 
 #ifndef M25P80_ERR_DEBUG
-#define M25P80_ERR_DEBUG 255
+#define M25P80_ERR_DEBUG 0
 #endif
 
 #define DB_PRINT_L(level, ...) do { \

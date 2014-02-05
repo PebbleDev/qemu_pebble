@@ -241,6 +241,10 @@ static void stm32_spi_write(void *opaque, hwaddr offset,
 static const MemoryRegionOps stm32_spi_ops = {
     .read = stm32_spi_read,
     .write = stm32_spi_write,
+    .valid.min_access_size = 2,
+    .valid.max_access_size = 2,
+    .impl.min_access_size = 2,
+    .impl.max_access_size = 2,
     .endianness = DEVICE_NATIVE_ENDIAN
 };
 

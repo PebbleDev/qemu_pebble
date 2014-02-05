@@ -173,7 +173,8 @@ static uint64_t stm32_tim25_read(void *opaque, hwaddr offset,
             break;
 
         default:
-            STM32_NOT_IMPL_REG(offset, size);
+            DPRINTF("WARNING: Not implemented: 0x%X\n", (uint32_t)offset);
+            //STM32_NOT_IMPL_REG(offset, size);
             break;
     }
     DPRINTF("Read [0x%X] = 0x%X\n", (uint32_t)offset, (uint32_t)value);
@@ -208,7 +209,8 @@ static void stm32_tim25_write(void *opaque, hwaddr offset,
             stm32_tim25_TIM_ARR_write(s, value);
             break;
         default:
-            STM32_NOT_IMPL_REG(offset, size);
+            DPRINTF("Not implemented 0x%X\n", (uint32_t)offset);
+            //STM32_NOT_IMPL_REG(offset, size);
             break;
     }
 
@@ -229,6 +231,10 @@ static void stm32_tim25_reset(DeviceState *d)
 static const MemoryRegionOps stm32_tim25_ops = {
     .read = stm32_tim25_read,
     .write = stm32_tim25_write,
+    .valid.min_access_size = 2,
+    .valid.max_access_size = 4,
+    .impl.min_access_size = 2,
+    .impl.max_access_size = 4,
     .endianness = DEVICE_NATIVE_ENDIAN,
 };
 

@@ -13,7 +13,7 @@
 #include "hw/ssi.h"
 #include "ui/console.h"
 #include "qemu/bitops.h"
-//#define DEBUG_LS01X_LCD 1
+#define DEBUG_LS01X_LCD 1
 
 #ifdef DEBUG_LS01X_LCD
 #define DPRINTF(fmt, ...) \
