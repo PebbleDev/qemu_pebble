@@ -234,7 +234,10 @@ static uint64_t stm32_gpio_read(void *opaque, hwaddr offset,
 {
     Stm32Gpio *s = (Stm32Gpio *)opaque;
     uint32_t value;
-    assert(size == 4);
+    if(size != 4)
+    {
+        DPRINTF("Warn: Gpio read of size %u from offset 0x%X\n", size, (uint32_t)offset);
+    }
 
     switch (offset) {
         case GPIOx_MODER_OFFSET:
