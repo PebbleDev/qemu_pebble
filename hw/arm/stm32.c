@@ -317,12 +317,15 @@ qemu_irq *stm32_init(
     DeviceState *tim4_dev = qdev_create(NULL, "stm32-tim25");
     object_property_add_child(stm32_container, "tim4", OBJECT(tim4_dev), NULL);
     stm32_init_periph(tim4_dev, STM32_TIM4, 0x40000800, pic[STM32_TIM4_IRQ]);
+    DeviceState *tim3_dev = qdev_create(NULL, "stm32-tim25");
+    object_property_add_child(stm32_container, "tim3", OBJECT(tim3_dev), NULL);
+    stm32_init_periph(tim3_dev, STM32_TIM3, 0x40000400, pic[STM32_TIM3_IRQ]);
 //    stm32_create_fake_device(stm32_container, STM32_TIM4, 0x40000800, 0x400);
 
 
     stm32_create_fake_device(stm32_container, STM32_TIM1, 0x40010000, 0x400);
     stm32_create_fake_device(stm32_container, STM32_TIM2, 0x40000000, 0x400);
-    stm32_create_fake_device(stm32_container, STM32_TIM3, 0x40000400, 0x400);
+//    stm32_create_fake_device(stm32_container, STM32_TIM3, 0x40000400, 0x400);
     stm32_create_fake_device(stm32_container, STM32_TIM5, 0x40000c00, 0x400);
     stm32_create_fake_device(stm32_container, STM32_TIM6, 0x40001000, 0x400);
     stm32_create_fake_device(stm32_container, STM32_TIM7, 0x40001400, 0x400);
