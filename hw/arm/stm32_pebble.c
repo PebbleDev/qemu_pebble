@@ -38,6 +38,7 @@
 typedef struct
 {
     qemu_irq outputs[4];
+    bool prev_state[4];
 } KbdState;
 
 static void stm32_pebble_key_event(void *opaque, int keycode)
@@ -50,13 +51,19 @@ static void stm32_pebble_key_event(void *opaque, int keycode)
         case 3:
         case 4:
         case 5:
-            irq = s->outputs[(keycode & SCANCODE_KEYCODEMASK) - 2];
-            if(keycode & SCANCODE_UP)
+        {
+            uint8_t idx = (keycode & SCANCODE_KEYCODEMASK) - 2;
+            irq = s->outputs[idx];
+            bool up = !!(keycode & SCANCODE_UP);
+            if(s->prev_state[idx] == up)
+                break;
+            if(up)
                 qemu_set_irq(irq, 0);
             else
                 qemu_set_irq(irq, 1);
-            break;
-
+            s->prev_state[idx] = up;
+        }
+             break;
         default:
             printf("Pebble: Unknown key pressed %c (0x%X)\n", keycode & SCANCODE_KEYCODEMASK, keycode );
             break;
@@ -136,11 +143,6 @@ static void stm32_pebble_init(QEMUMachineInitArgs *args)
     kbdstate->outputs[1] = qdev_get_gpio_in(gpio_c, 6);
     kbdstate->outputs[2] = qdev_get_gpio_in(gpio_c, 11);
     kbdstate->outputs[3] = qdev_get_gpio_in(gpio_c, 12);
-    qemu_set_irq(kbdstate->outputs[0], 1);
-    qemu_set_irq(kbdstate->outputs[1], 1);
-    qemu_set_irq(kbdstate->outputs[2], 1);
-    qemu_set_irq(kbdstate->outputs[3], 1);
-    if(0)
     qemu_add_kbd_event_handler(stm32_pebble_key_event, kbdstate);
  }
 
