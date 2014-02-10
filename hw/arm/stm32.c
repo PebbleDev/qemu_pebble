@@ -93,6 +93,7 @@ const char *stm32_periph_name_arr[] = {
     [STM32_I2S1] = "I2S1",
     [STM32_I2S2] = "I2S2",
     [STM32_WWDG] = "WWDG",
+    [STM32_IWDG] = "IWDG",
     [STM32_CAN1] = "CAN1",
     [STM32_CAN2] = "CAN2",
     [STM32_CAN] = "CAN",
@@ -196,6 +197,20 @@ static void stm32_create_uart_dev(
     stm32_init_periph(uart_dev, periph, addr, irq);
 }
 
+static void stm32_create_timer25_dev(Object *stm32_container,
+        stm32_periph_t periph,
+        uint8_t timer_num, DeviceState *rcc_dev,
+        hwaddr addr, qemu_irq irq)
+{
+    char child_name[8];
+    DeviceState *tim_dev = qdev_create(NULL, "stm32-tim25");
+    QDEV_PROP_SET_PERIPH_T(tim_dev, "periph", periph);
+    qdev_prop_set_ptr(tim_dev, "stm32_rcc", rcc_dev);
+    snprintf(child_name, sizeof(child_name), "tim[%i]", timer_num);
+    object_property_add_child(stm32_container, child_name, OBJECT(tim_dev), NULL);
+    stm32_init_periph(tim_dev, periph, addr, irq);
+
+}
 
 qemu_irq *stm32_init(
             ram_addr_t flash_size,
@@ -300,6 +315,7 @@ qemu_irq *stm32_init(
 
 //    stm32_create_fake_device(stm32_container, STM32_SYSCFG, 0x40013800, 0x400);
     stm32_create_fake_device(stm32_container, STM32_WWDG, 0x40002c00, 0x400);
+    stm32_create_fake_device(stm32_container, STM32_IWDG, 0x40003000, 0x400);
 
     stm32_create_fake_device(stm32_container, STM32_FLASH, 0x40023C00, 0x400);
     stm32_create_fake_device(stm32_container, STM32_DMA1, 0x40026000, 0x400);
@@ -316,19 +332,12 @@ qemu_irq *stm32_init(
  
     stm32_create_fake_device(stm32_container, STM32_ADC1, 0x40012000, 0x400);
 
-    DeviceState *tim4_dev = qdev_create(NULL, "stm32-tim25");
-    object_property_add_child(stm32_container, "tim4", OBJECT(tim4_dev), NULL);
-    stm32_init_periph(tim4_dev, STM32_TIM4, 0x40000800, pic[STM32_TIM4_IRQ]);
-    DeviceState *tim3_dev = qdev_create(NULL, "stm32-tim25");
-    object_property_add_child(stm32_container, "tim3", OBJECT(tim3_dev), NULL);
-    stm32_init_periph(tim3_dev, STM32_TIM3, 0x40000400, pic[STM32_TIM3_IRQ]);
-//    stm32_create_fake_device(stm32_container, STM32_TIM4, 0x40000800, 0x400);
-
+    stm32_create_timer25_dev(stm32_container, STM32_TIM2, 2, rcc_dev, 0x40000000, pic[STM32_TIM2_IRQ]);
+    stm32_create_timer25_dev(stm32_container, STM32_TIM3, 3, rcc_dev, 0x40000400, pic[STM32_TIM3_IRQ]);
+    stm32_create_timer25_dev(stm32_container, STM32_TIM4, 4, rcc_dev, 0x40000800, pic[STM32_TIM4_IRQ]);
+    stm32_create_timer25_dev(stm32_container, STM32_TIM5, 5, rcc_dev, 0x40000c00, pic[STM32_TIM5_IRQ]);
 
     stm32_create_fake_device(stm32_container, STM32_TIM1, 0x40010000, 0x400);
-    stm32_create_fake_device(stm32_container, STM32_TIM2, 0x40000000, 0x400);
-//    stm32_create_fake_device(stm32_container, STM32_TIM3, 0x40000400, 0x400);
-    stm32_create_fake_device(stm32_container, STM32_TIM5, 0x40000c00, 0x400);
     stm32_create_fake_device(stm32_container, STM32_TIM6, 0x40001000, 0x400);
     stm32_create_fake_device(stm32_container, STM32_TIM7, 0x40001400, 0x400);
     stm32_create_fake_device(stm32_container, STM32_TIM12, 0x40001800, 0x400);
