@@ -221,8 +221,17 @@ qemu_irq *stm32_init(
 {
     MemoryRegion *address_space_mem = get_system_memory();
     MemoryRegion *flash_alias_mem = g_malloc(sizeof(MemoryRegion));
+    char *otpbacking = g_malloc(sizeof(char)*0x220);
+    MemoryRegion *otp_mem = g_malloc(sizeof(MemoryRegion));
     qemu_irq *pic;
     int i;
+
+    // OTP Bytes
+    memset(otpbacking, 0xff, 0x210);
+    memset(&otpbacking[0x210], 0, 0x10); // Option bytes
+    strcpy(&otpbacking[0], "31M147B4C8EF");
+    strcpy(&otpbacking[0x20], "V2R2");
+    memset(&otpbacking[0x200], 0, 2);
 
     Object *stm32_container = container_get(qdev_get_machine(), "/stm32");
 
@@ -252,6 +261,9 @@ qemu_irq *stm32_init(
             0,
             flash_size);
     memory_region_add_subregion(address_space_mem, 0x08000000, flash_alias_mem);
+
+    memory_region_init_ram_ptr(otp_mem, NULL, "stm32-flash-otp-mem", 0x220, otpbacking);
+    memory_region_add_subregion(address_space_mem, 0x1fff7800, otp_mem);
 
     DeviceState *rcc_dev = qdev_create(NULL, "stm32-rcc");
     qdev_prop_set_uint32(rcc_dev, "osc_freq", osc_freq);
