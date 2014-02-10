@@ -34,7 +34,7 @@
 
 #ifdef DEBUG_TIM25
 #define DPRINTF(fmt, ...) \
-    do { fprintf(stderr, "STM32_TIM25: [%24s:%5d] " fmt, __func__, __LINE__, \
+    do { fprintf(stderr, "STM32_TIM25(%s): [%24s:%5d] " fmt, stm32_periph_name(s->periph), __func__, __LINE__, \
             ## __VA_ARGS__); } while(0)
 #else
 #define DPRINTF(fmt, ...) do {} while(0)
@@ -49,6 +49,8 @@
 #define TIM_CR2_OFFSET 0x4
 #define TIM_SMCR_OFFSET 0x8
 #define TIM_DIER_OFFSET 0xc
+#define TIM_DIER_UIE_BIT 0
+
 #define TIM_SR_OFFSET 0x10
 #define TIM_SR_UIF_BIT 0
 #define TIM_EGR_OFFSET 0x14
@@ -86,11 +88,56 @@ typedef struct STM32TIM25State {
         TIM_ARR,
         TIM_DIER;
 
+
+    ptimer_state *ptimer;
+    uint32_t freq;
     /* Properties */
     stm32_periph_t periph;
+    void *stm32_rcc_prop;
+
+    Stm32Rcc *stm32_rcc;
 } STM32TIM25State;
 
 
+
+static void stm32_tim25_trigger_interrupt(STM32TIM25State *s)
+{
+    if(extract32(s->TIM_DIER, TIM_DIER_UIE_BIT, 1))
+    {
+//        DPRINTF("Triggering irq\n");
+        s->TIM_SR |= BIT(TIM_SR_UIF_BIT);
+        qemu_irq_raise(s->irq);
+    }
+}
+
+static void stm32_tim25_tick(void *opaque)
+{
+    STM32TIM25State *s = (STM32TIM25State*)opaque;
+//    DPRINTF("Timer tick with counter %u and freq %u\n", s->TIM_ARR, s->freq);
+    stm32_tim25_trigger_interrupt(s);
+    ptimer_set_freq(s->ptimer, s->freq);
+    ptimer_set_count(s->ptimer, s->TIM_ARR);
+    ptimer_run(s->ptimer, 1);
+}
+
+
+static void stm32_tim25_update_frequency(STM32TIM25State *s)
+{
+    uint32_t freq = stm32_rcc_get_periph_freq(s->stm32_rcc, s->periph);
+    if(freq > 0 && s->TIM_PSC > 0)
+    {
+        s->freq = freq / (s->TIM_PSC);
+        DPRINTF("%s is running at %lu Hz.\n", stm32_periph_name(s->periph),
+               (unsigned long)s->freq);
+//        ptimer_set_freq(s->ptimer, s->freq);
+    }
+}
+
+static void stm32_tim25_clk_irq_handler(void *opaque, int n, int level)
+{
+    STM32TIM25State *s = (STM32TIM25State*)opaque;
+    stm32_tim25_update_frequency(s);
+}
 
 static uint32_t stm32_tim25_TIM_CR1_read(STM32TIM25State* s)
 {
@@ -102,14 +149,14 @@ static void stm32_tim25_TIM_CR1_write(STM32TIM25State* s, uint32_t value)
 {
     if(!s->enabled && test_bit(TIM_CR1_CEN_BIT, (const unsigned long*)&value))
     {
-        /* 
-            ptimer_reset();
-            ptimer_run();
-        */
+        assert(s->TIM_ARR > 0);
+        assert(s->freq > 0);
+        ptimer_set_freq(s->ptimer, s->freq);
+        ptimer_set_count(s->ptimer, s->TIM_ARR);
+        ptimer_run(s->ptimer, 1);
     } else if (s->enabled && !test_bit(TIM_CR1_CEN_BIT, (const unsigned long*)&value))
     {
-        /* ptimer_stop();
-        */
+        ptimer_stop(s->ptimer);
     }
     s->direction = test_bit(TIM_CR1_DIR_BIT, (const unsigned long*)&value);
 
@@ -125,6 +172,12 @@ static void stm32_tim25_TIM_ARR_write(STM32TIM25State* s, uint32_t value)
 static void stm32_tim25_TIM_PSC_write(STM32TIM25State* s, uint32_t value)
 {
     s->TIM_PSC = value & 0xffff;
+    stm32_tim25_update_frequency(s);
+}
+
+static void stm32_tim25_TIM_PSC2_write(STM32TIM25State* s, uint32_t value)
+{
+    s->TIM_PSC |= (value & 0xffff) << 16;
 }
 
 static void stm32_tim25_TIM_EGR_write(STM32TIM25State* s, const uint64_t value)
@@ -135,9 +188,10 @@ static void stm32_tim25_TIM_EGR_write(STM32TIM25State* s, const uint64_t value)
         DPRINTF("Re-initializing counter\n");
         if(!test_bit(TIM_CR1_UDIS_BIT, &value))
         {
-  //              if(!test_bit(TIM_CR1_URS_BIT, &value))
-//                qemu_irq_raise(s->irq);
-            s->TIM_SR |= TIM_SR_UIF_BIT;
+ /*           if(!test_bit(TIM_CR1_URS_BIT, &value))
+            stm32_tim25_trigger_interrupt(s);
+                    qemu_irq_raise(s->irq);
+                s->TIM_SR |= TIM_SR_UIF_BIT;*/
         }
     }
     if(test_bit(TIM_EGR_TG_BIT, (const uint64_t*)&value))
@@ -200,7 +254,11 @@ static void stm32_tim25_write(void *opaque, hwaddr offset,
             break;
 
         case TIM_SR_OFFSET:
-            s->TIM_SR &= ~value;
+            s->TIM_SR = value & BIT(TIM_SR_UIF_BIT);
+            if(!extract32(s->TIM_SR, TIM_SR_UIF_BIT, 1))
+            {
+                qemu_irq_lower(s->irq);
+            }
             break;
         case TIM_EGR_OFFSET:
             stm32_tim25_TIM_EGR_write(s, value);
@@ -208,7 +266,9 @@ static void stm32_tim25_write(void *opaque, hwaddr offset,
         case TIM_PSC_OFFSET:
             stm32_tim25_TIM_PSC_write(s, value);
             break;
-
+        case TIM_PSC_OFFSET+2:
+            stm32_tim25_TIM_PSC2_write(s, value);
+            break;
         case TIM_ARR_OFFSET:
             stm32_tim25_TIM_ARR_write(s, value);
             break;
@@ -244,6 +304,7 @@ static const MemoryRegionOps stm32_tim25_ops = {
 
 static Property stm32_tim25_properties[] = {
     DEFINE_PROP_PERIPH_T("periph", STM32TIM25State, periph, STM32_PERIPH_UNDEFINED),
+    DEFINE_PROP_PTR("stm32_rcc", STM32TIM25State, stm32_rcc_prop),
     DEFINE_PROP_END_OF_LIST()
 };
 
@@ -252,10 +313,24 @@ static Property stm32_tim25_properties[] = {
 static int stm32_tim25_init(SysBusDevice *dev)
 {
     STM32TIM25State *s = STM32_TIM25_DEVICE(dev);
+    QEMUBH *bh;
+    qemu_irq *clk_irq;
+
+    s->stm32_rcc = (Stm32Rcc *)s->stm32_rcc_prop;
 
     memory_region_init_io(&s->iomem, NULL, &stm32_tim25_ops, s, "stm32-tim25", 0x400);
     sysbus_init_mmio(dev, &s->iomem);
     sysbus_init_irq(dev, &s->irq);
+
+    bh = qemu_bh_new(stm32_tim25_tick, s);
+    s->ptimer = ptimer_init(bh);
+    s->freq = stm32_rcc_get_periph_freq(s->stm32_rcc, s->periph);
+    if(s->freq > 0)
+        ptimer_set_freq(s->ptimer, s->freq);
+    clk_irq =
+          qemu_allocate_irqs(stm32_tim25_clk_irq_handler, (void *)s, 1);
+    stm32_rcc_set_periph_clk_irq(s->stm32_rcc, s->periph, clk_irq[0]);
+
     return 0;
 }
 
