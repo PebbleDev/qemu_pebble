@@ -22,6 +22,7 @@
 #include "hw/arm/stm32.h"
 #include "exec/address-spaces.h"
 #include "exec/gdbstub.h"
+#include <time.h>
 
 /* DEFINITIONS */
 
@@ -45,7 +46,16 @@ void stm32_hw_warn(const char *fmt, ...)
     }*/
     va_end(ap);
 }
+static char buffer[9];
 
+// NOTE: This is obviously non-reentrant, but should be OK.
+const char *stm32_get_timestamp(void)
+{
+    time_t now = time(NULL);
+    struct tm *ptm = localtime(&now);
+    strftime(buffer, 9, "%H:%M:%S", ptm);
+    return buffer;
+}
 
 
 
@@ -114,7 +124,8 @@ const char *stm32_periph_name_arr[] = {
 const char *stm32_periph_name(stm32_periph_t periph)
 {
     assert(periph < STM32_PERIPH_COUNT);
-
+    if(periph == STM32_PERIPH_UNDEFINED)
+        return "UNDEFINED";
     return stm32_periph_name_arr[periph];
 }
 

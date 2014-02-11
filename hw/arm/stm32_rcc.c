@@ -19,6 +19,7 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, see <http://www.gnu.org/licenses/>.
  */
+
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
 
@@ -35,13 +36,13 @@
 /* DEFINITIONS*/
 
 /* See README for DEBUG details. */
+
 #define DEBUG_STM32_RCC
 
 #ifdef DEBUG_STM32_RCC
-#define DPRINTF(fmt, ...)                                       \
-    do { fprintf(stderr, "STM32_RCC: " fmt , ## __VA_ARGS__); } while (0)
+#define DPRINT(fmt, ...) do { DPRINTF("STM32_RCC", s->periph, fmt, ## __VA_ARGS__); } while(0)
 #else
-#define DPRINTF(fmt, ...)
+#define DPRINT(fmt, ...) {}
 #endif
 
 #define HSI_FREQ 16000000
@@ -220,6 +221,7 @@ struct Stm32Rcc {
 
     /* Private */
     MemoryRegion iomem;
+    stm32_periph_t periph;
 
     /* Register Values */
     uint32_t
@@ -288,19 +290,19 @@ static void stm32_rcc_periph_enable(
     if(new_value & BIT(bit_pos))
     {
         if(!clktree_is_enabled(s->PERIPHCLK[periph]))
-            DPRINTF("Enabling periphial %s\n", stm32_periph_name(periph));
+            DPRINT("Enabling periphial\n");
     }
     else
     {
         if(clktree_is_enabled(s->PERIPHCLK[periph]))
-            DPRINTF("Disabling periphial %s\n", stm32_periph_name(periph));
+            DPRINT("Disabling periphial\n");
     }
 
     clktree_set_enabled(s->PERIPHCLK[periph], new_value & BIT(bit_pos));
 }
 
 
-
+#ifdef DEBUG_STM32_RCC
 static const char* stm32_rcc_registername(hwaddr offset)
 {
 
@@ -320,7 +322,7 @@ static const char* stm32_rcc_registername(hwaddr offset)
             return "Unknown";
     }
 }
-
+#endif
 
 /* REGISTER IMPLEMENTATION */
 
@@ -442,7 +444,7 @@ static void stm32_rcc_RCC_PLLCFGR_write(Stm32Rcc *s, uint32_t new_value, bool in
 
     s->RCC_PLLCFGR_PLLM = new_PLLM;
     s->RCC_PLLCFGR_PLLN = new_PLLN;
-    DPRINTF("PLLP=%u, PLLM=%u, PLLN=%u\n", new_PLLP, new_PLLM, new_PLLN);
+    DPRINT("PLLP=%u, PLLM=%u, PLLN=%u\n", new_PLLP, new_PLLM, new_PLLN);
 }
 
 static uint32_t stm32_rcc_RCC_CFGR_read(Stm32Rcc *s)
@@ -684,7 +686,7 @@ static void stm32_rcc_RCC_CSR_write(Stm32Rcc *s, uint32_t new_value, bool init)
 static uint64_t stm32_rcc_readw(void *opaque, hwaddr offset)
 {
     Stm32Rcc *s = (Stm32Rcc *)opaque;
-    //DPRINTF("RCC_READ: Offset = 0x%X\n", (int)offset);
+    //DPRINT("RCC_READ: Offset = 0x%X\n", (int)offset);
     switch (offset) {
         case RCC_CR_OFFSET:
             return stm32_rcc_RCC_CR_read(s);
@@ -728,7 +730,7 @@ static void stm32_rcc_writew(void *opaque, hwaddr offset,
                           uint64_t value)
 {
     Stm32Rcc *s = (Stm32Rcc *)opaque;
-    //DPRINTF("RCC_WRITE: Offset = 0x%X New_value = 0x%" PRIu64 "\n", (int)offset, value);
+    //DPRINT("RCC_WRITE: Offset = 0x%X New_value = 0x%" PRIu64 "\n", (int)offset, value);
 
     switch(offset) {
         case RCC_CR_OFFSET:
@@ -748,7 +750,7 @@ static void stm32_rcc_writew(void *opaque, hwaddr offset,
         case RCC_AHB3RSTR_OFFSET:
         case RCC_APB1RSTR_OFFSET:
         case RCC_APB2RSTR_OFFSET:
-            DPRINTF("%s (0x%X): Attempting to reset Periph: %" PRIu64 "\n", stm32_rcc_registername(offset), (uint32_t)offset, value);
+            DPRINT("%s (0x%X): Attempting to reset Periph: %" PRIu64 "\n", stm32_rcc_registername(offset), (uint32_t)offset, value);
 //            STM32_NOT_IMPL_REG(offset, 4);
             break;
         case RCC_AHB1ENR_OFFSET:
@@ -878,9 +880,9 @@ static void stm32_rcc_hclk_upd_irq_handler(void *opaque, int n, int level)
     }
 
 #ifdef DEBUG_STM32_RCC
-    DPRINTF("Cortex SYSTICK frequency set to %lu Hz (scale set to %d).\n",
+    DPRINT("Cortex SYSTICK frequency set to %lu Hz (scale set to %d).\n",
                 (unsigned long)hclk_freq, system_clock_scale);
-    DPRINTF("Cortex SYSTICK ext ref frequency set to %lu Hz "
+    DPRINT("Cortex SYSTICK ext ref frequency set to %lu Hz "
               "(scale set to %d).\n",
               (unsigned long)ext_ref_freq, external_ref_clock_scale);
 #endif
@@ -1051,6 +1053,7 @@ static int stm32_rcc_init(SysBusDevice *dev)
     sysbus_init_irq(dev, &s->irq);
 
     stm32_rcc_init_clk(s);
+    s->periph = STM32_RCC;
 //    stm32_rcc_reset(dev);
     return 0;
 }

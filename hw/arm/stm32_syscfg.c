@@ -36,10 +36,10 @@
 #define DEBUG_STM32_SYSCFG
 
 #ifdef DEBUG_STM32_SYSCFG
-#define DPRINTF(fmt, ...)                                       \
-    do { fprintf(stderr, "STM32_SYSCFG: " fmt , ## __VA_ARGS__); } while (0)
+#define DPRINT(fmt, ...)                                       \
+    do { DPRINTF("STM32_SYSCFG", s->periph, fmt , ## __VA_ARGS__); } while (0)
 #else
-#define DPRINTF(fmt, ...)
+#define DPRINT(fmt, ...) {}
 #endif
 
 #define SYSCFG_MEMRM_OFFSET 0x0
@@ -75,7 +75,7 @@ static void stm32_syscfg_SYSCFG_EXTICR_write(Stm32Syscfg *s, uint32_t regnum,
 {
     uint32_t start_exti = regnum << 2;
     uint32_t i, tmpval;
-    DPRINTF("Exticr_write regnum=%u, value=0x%X\n", regnum, value);
+    DPRINT("Exticr_write regnum=%u, value=0x%X\n", regnum, value);
     for(i=0; i <4; i++)
     {
         uint32_t curr_exti = start_exti + i;
@@ -84,7 +84,7 @@ static void stm32_syscfg_SYSCFG_EXTICR_write(Stm32Syscfg *s, uint32_t regnum,
         if(tmpval && tmpval != extract32(s->exti[regnum], i<<2, 4))
         {
             qemu_irq irq = qdev_get_gpio_in(s->exti_dev, curr_exti);
-            DPRINTF("Would connect up EXTI GPIO%c to Pin %u\n", 'A' + tmpval, curr_exti);
+            DPRINT("Would connect up EXTI GPIO%c to Pin %u\n", 'A' + tmpval, curr_exti);
               qdev_connect_gpio_out(s->gpio_dev[tmpval], curr_exti, irq);
 //            sysbus_connect_irq(exti_dev, curr_exti, irq);
         }

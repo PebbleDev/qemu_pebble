@@ -33,10 +33,10 @@
 #define DEBUG_STM32_GPIO
 
 #ifdef DEBUG_STM32_GPIO
-#define DPRINTF(fmt, ...)                                       \
-    do { fprintf(stderr, "STM32_GPIO: " fmt, ## __VA_ARGS__); } while (0)
+#define DPRINT(fmt, ...)                                       \
+    do { DPRINTF("STM32_GPIO", s->periph, fmt, ## __VA_ARGS__); } while (0)
 #else
-#define DPRINTF(fmt, ...)
+#define DPRINT(fmt, ...)
 #endif
 
 
@@ -97,7 +97,7 @@ static void stm32_gpio_in_trigger(void *opaque, int irq, int level)
     Stm32Gpio *s = opaque;
     unsigned pin = irq;
 
-    DPRINTF("Changed state of input-pin %u to %u\n", pin, !!level);
+    DPRINT("Changed state of input-pin %u to %u\n", pin, !!level);
     assert(pin < STM32_GPIO_PIN_COUNT);
 
     /* Update internal pin state. */
@@ -166,7 +166,7 @@ static void stm32_gpio_GPIOx_ODR_write(Stm32Gpio *s, uint32_t new_value)
                 qemu_set_irq(
                         DEVICE(s)->gpio_out[pin],
                         (s->GPIOx_ODR & BIT(pin)) ? 1 : 0);
-                DPRINTF("%s: Pin %u set to %u\n", stm32_periph_name(s->periph), pin, (s->GPIOx_ODR & BIT(pin)) ? 1 : 0);
+                DPRINT("%s: Pin %u set to %u\n", stm32_periph_name(s->periph), pin, (s->GPIOx_ODR & BIT(pin)) ? 1 : 0);
             }
         }
     }
@@ -212,10 +212,10 @@ static void stm32_gpio_GPIOx_MODER_write(Stm32Gpio *s, uint32_t new_value)
                     s->output &= ~BIT(pin);
                     break;
                 default:
-                    DPRINTF("Invalid mode!? 0x%X\n", val);
+                    DPRINT("Invalid mode!? 0x%X\n", val);
             }
             // Mode is changed!
-            DPRINTF("Port: %s Pin: %d changed to %s\n", stm32_periph_name(s->periph), pin, mode);
+            DPRINT("Port: %s Pin: %d changed to %s\n", stm32_periph_name(s->periph), pin, mode);
 
         }
         changed += 1;
@@ -229,7 +229,7 @@ static void stm32_gpio_GPIOx_AFRx_write(Stm32Gpio *s, uint64_t new_value)
     for(pin=0; pin < STM32_GPIO_PIN_COUNT; pin++)
     {
 //        int val = extract64(new_value, pin*4, 4);
-/*        DPRINTF("%s: Pin %u set to mode AF%u\n",
+/*        DPRINT("%s: Pin %u set to mode AF%u\n",
                 stm32_periph_name(s->periph), pin, val);*/
     }
 }
@@ -241,7 +241,7 @@ static uint64_t stm32_gpio_read(void *opaque, hwaddr offset,
     uint32_t value;
     if(size != 4)
     {
-        DPRINTF("Warn: Gpio read of size %u from offset 0x%X\n", size, (uint32_t)offset);
+        DPRINT("Warn: Gpio read of size %u from offset 0x%X\n", size, (uint32_t)offset);
     }
 
     switch (offset) {
@@ -282,7 +282,7 @@ static uint64_t stm32_gpio_read(void *opaque, hwaddr offset,
             value = 0;
             break;
     }
-    DPRINTF("%s: Read of size %u from 0x%X with value = 0x%X\n", stm32_periph_name(s->periph), size, (uint32_t)offset, (uint32_t)value);
+    DPRINT("%s: Read of size %u from 0x%X with value = 0x%X\n", stm32_periph_name(s->periph), size, (uint32_t)offset, (uint32_t)value);
 
     return value;
 }
@@ -376,7 +376,7 @@ static void stm32_gpio_write(void *opaque, hwaddr offset,
 {
     Stm32Gpio *s = (Stm32Gpio *)opaque;
     stm32_rcc_check_periph_clk((Stm32Rcc *)s->stm32_rcc, s->periph);
-    DPRINTF("%s: Write of size %u to 0x%X with value = 0x%X\n", stm32_periph_name(s->periph), size, (uint32_t)offset, (uint32_t)value);
+    DPRINT("%s: Write of size %u to 0x%X with value = 0x%X\n", stm32_periph_name(s->periph), size, (uint32_t)offset, (uint32_t)value);
     switch(size)
     {
         case 2:

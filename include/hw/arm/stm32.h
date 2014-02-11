@@ -28,6 +28,16 @@
 #include "hw/sysbus.h"
 #include "qemu/log.h"
 
+const char *stm32_get_timestamp(void);
+
+#define __STM32_FILE__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+#define DPRINTF(id, perphid, fmt, ...) do { \
+        fprintf(stderr, "%s - %s(%s) [%s:%d]: " fmt, stm32_get_timestamp(), id, \
+                stm32_periph_name(perphid), __STM32_FILE__, __LINE__, \
+                ## __VA_ARGS__); \
+    } while(0);
+
+
 void stm32_hw_warn(const char *fmt, ...)
     __attribute__ ((__format__ (__printf__, 1, 2)));
 
@@ -121,6 +131,7 @@ enum
   STM32_FSMC,
   STM32_SYSCFG,
   STM32_FLASH,
+  STM32_CLKTREE,
   STM32_PERIPH_COUNT,
 };
 

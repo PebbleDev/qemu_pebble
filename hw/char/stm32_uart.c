@@ -40,10 +40,10 @@
 //#define STM32_UART_ENABLE_OVERRUN
 
 #ifdef DEBUG_STM32_UART
-#define DPRINTF(fmt, ...)                                       \
-    do { printf("STM32_UART: " fmt , ## __VA_ARGS__); } while (0)
+#define DPRINT(fmt, ...)                                       \
+    do { DPRINTF("STM32_UART", s->periph, fmt , ## __VA_ARGS__); } while (0)
 #else
-#define DPRINTF(fmt, ...)
+#define DPRINT(fmt, ...)
 #endif
 
 #define USART_SR_OFFSET 0x00
@@ -160,13 +160,13 @@ static void stm32_uart_baud_update(Stm32Uart *s)
     }
 
 #ifdef DEBUG_STM32_UART
-    DPRINTF("%s clock is set to %lu Hz.\n",
+    DPRINT("%s clock is set to %lu Hz.\n",
                 stm32_periph_name(s->periph),
                 (unsigned long)clk_freq);
-    DPRINTF("%s BRR set to %lu.\n",
+    DPRINT("%s BRR set to %lu.\n",
                 stm32_periph_name(s->periph),
                 (unsigned long)s->USART_BRR);
-    DPRINTF("%s Baud is set to %lu bits per sec.\n",
+    DPRINT("%s Baud is set to %lu bits per sec.\n",
                 stm32_periph_name(s->periph),
                 (unsigned long)s->bits_per_sec);
 #endif

@@ -39,10 +39,10 @@
 #define DEBUG_STM32_FAKE
 
 #ifdef DEBUG_STM32_FAKE
-#define DPRINTF(fmt, ...)                                       \
-    do { fprintf(stderr, "STM32_FAKE: " fmt , ## __VA_ARGS__); fflush(stdout); } while (0)
+#define DPRINT(fmt, ...)                                       \
+    do { DPRINTF("STM32_FAKE", s->periph, fmt , ## __VA_ARGS__); } while (0)
 #else
-#define DPRINTF(fmt, ...)
+#define DPRINT(fmt, ...)
 #endif
 
 
@@ -64,7 +64,7 @@ static uint64_t stm32_fake_read(void *opaque, hwaddr offset,
                           unsigned size)
 {
     Stm32Fake *s = (Stm32Fake *)opaque;
-    DPRINTF("Read (%s), Offset=0x%x, size=%u\n", stm32_periph_name(s->periph), (unsigned int)offset, size);
+    DPRINT("Read (%s), Offset=0x%x, size=%u\n", stm32_periph_name(s->periph), (unsigned int)offset, size);
    return s->regs[offset];
 }
 
@@ -72,7 +72,7 @@ static void stm32_fake_write(void *opaque, hwaddr offset,
                        uint64_t value, unsigned size)
 {
     Stm32Fake *s = (Stm32Fake *)opaque;
-    DPRINTF("Write (%s), Offset=0x%x, Size=%u, value = %" PRIx64 "\n", stm32_periph_name(s->periph), (unsigned int)offset, size, value);
+    DPRINT("Write (%s), Offset=0x%x, Size=%u, value = %" PRIx64 "\n", stm32_periph_name(s->periph), (unsigned int)offset, size, value);
     s->regs[offset] = value;
 }
 

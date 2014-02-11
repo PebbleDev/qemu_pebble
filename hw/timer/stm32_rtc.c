@@ -48,11 +48,10 @@
 #define DEBUG_RTC 1
 
 #if DEBUG_RTC
-#define DPRINTF(fmt, ...) \
-        do { fprintf(stderr, "STM32_RTC: [%24s:%5d] " fmt, __func__, __LINE__, \
-                ## __VA_ARGS__); } while (0)
+#define DPRINT(fmt, ...) \
+        do { DPRINTF("STM32_RTC", s->periph, fmt, ## __VA_ARGS__); } while (0)
 #else
-#define DPRINTF(fmt, ...) do {} while (0)
+#define DPRINT(fmt, ...) do {} while (0)
 #endif
 
 #define     STM32_RTC_REG_MEM_SIZE     0x0400
@@ -163,6 +162,7 @@ typedef struct STM32RTCState {
 
     SysBusDevice busdev;
     MemoryRegion iomem;
+    stm32_periph_t periph;
 
     stm32_rtc_states state;
 
@@ -272,7 +272,7 @@ static const VMStateDescription vmstate_stm32_rtc_state = {
     }
 
     if (alarm_raise) {
-        DPRINTF("ALARM IRQ\n");
+        DPRINT("ALARM IRQ\n");
         // set irq status
         s->reg_intp |= INTP_ALM_ENABLE;
         qemu_irq_raise(s->alarm_irq);
@@ -295,7 +295,7 @@ static void stm32_rtc_update_freq(STM32RTCState *s,
 
     if (freq != s->freq) {
         ptimer_set_freq(s->ptimer, s->freq);
-        DPRINTF("freq=%dHz\n", s->freq);
+        DPRINT("freq=%dHz\n", s->freq);
     }
 }
 
@@ -362,7 +362,7 @@ static void stm32_rtc_tick(void *opaque)
 {
     STM32RTCState *s = (STM32RTCState *)opaque;
 
-    DPRINTF("TICK IRQ\n");
+    DPRINT("TICK IRQ\n");
     /* set irq status */
 //    s->reg_intp |= INTP_TICK_ENABLE;
     /* raise IRQ */
@@ -381,7 +381,7 @@ static void stm32_rtc_1Hz_tick(void *opaque)
     STM32RTCState *s = (STM32RTCState *)opaque;
 
     rtc_next_second(&s->current_tm);
-    DPRINTF("1Hz tick\n");
+    DPRINT("1Hz tick\n");
 
     /* raise IRQ */
 /*    if ((s->RTC_CR & BIT(RTC_CR_ALRAE_BIT)) || (s->RTC_CR & BIT(RTC_CR_ALRBE_BIT))) {
@@ -429,11 +429,11 @@ static uint64_t stm32_rtc_read(void *opaque, hwaddr offset,
             break;
         case RTC_PRER_OFFSET:
             value = s->RTC_PRER;
-            DPRINTF("Read from 0x%x, value 0x%x\n", (uint32_t)offset, (uint32_t)value);
+            DPRINT("Read from 0x%x, value 0x%x\n", (uint32_t)offset, (uint32_t)value);
             break;
         case RTC_CR_OFFSET:
             value = s->RTC_CR;
-            DPRINTF("Read from 0x%x, value 0x%x\n", (uint32_t)offset, (uint32_t)value);
+            DPRINT("Read from 0x%x, value 0x%x\n", (uint32_t)offset, (uint32_t)value);
             break;
         case RTC_ISR_OFFSET:
             value = s->RTC_ISR_INIT << RTC_ISR_INIT_BIT |
@@ -441,7 +441,7 @@ static uint64_t stm32_rtc_read(void *opaque, hwaddr offset,
                     s->RTC_ISR_RSF << RTC_ISR_RSF_BIT |
                     (s->current_tm.tm_year > 0) << RTC_ISR_INITS_BIT |
                     0x00000007;
-            DPRINTF("Read from 0x%x, value 0x%x\n", (uint32_t)offset, (uint32_t)value);
+            DPRINT("Read from 0x%x, value 0x%x\n", (uint32_t)offset, (uint32_t)value);
             break;
     default:
         if(offset >= RTC_BKP0R_OFFSET && offset <= RTC_BKP19R_OFFSET)
@@ -467,7 +467,7 @@ static void stm32_rtc_write(void *opaque, hwaddr offset,
     STM32RTCState *s = (STM32RTCState *)opaque;
     uint32_t old_value;
     assert(size == 4);
-    DPRINTF("Write to 0x%x with value 0x%x\n", (uint32_t)offset, (uint32_t)value);
+    DPRINT("Write to 0x%x with value 0x%x\n", (uint32_t)offset, (uint32_t)value);
     switch (offset) {
         case RTC_TR_OFFSET:
             assert(s->state == RTC_UNLOCKED);
@@ -488,12 +488,12 @@ static void stm32_rtc_write(void *opaque, hwaddr offset,
             s->RTC_ISR_INIT = extract32(value, RTC_ISR_INIT_BIT, 1);
             if((value & BIT(RTC_ISR_INIT_BIT)) && old_value == 0)
             {
-                DPRINTF("Entering Init mode!\n");
+                DPRINT("Entering Init mode!\n");
                 ptimer_stop(s->ptimer_1Hz);
             }
             else if(!(value & BIT(RTC_ISR_INIT_BIT)) && old_value == 1)
             {
-                DPRINTF("Exiting init mode\n");
+                DPRINT("Exiting init mode\n");
                 ptimer_set_count(s->ptimer_1Hz, RTC_BASE_FREQ);
                 ptimer_run(s->ptimer_1Hz, 1);
             }
@@ -530,13 +530,13 @@ static void stm32_rtc_write(void *opaque, hwaddr offset,
                     if(value == 0x53)
                     {
                         s->state = RTC_UNLOCKED;
-                        DPRINTF("Unlocked!\n");
+                        DPRINT("Unlocked!\n");
                     }
                     else
                         s->state = RTC_LOCKED;
                     break;
                 default:
-                    DPRINTF("Invalid data written to WPR, resetting lockstate: 0x%X\n", (uint32_t)value);
+                    DPRINT("Invalid data written to WPR, resetting lockstate: 0x%X\n", (uint32_t)value);
                     s->state = RTC_LOCKED;
                     break;
             }
@@ -567,14 +567,14 @@ static void stm32_rtc_write(void *opaque, hwaddr offset,
             // clock timer 
             ptimer_set_count(s->ptimer_1Hz, RTC_BASE_FREQ);
             ptimer_run(s->ptimer_1Hz, 1);
-            DPRINTF("run clock timer\n");
+            DPRINT("run clock timer\n");
         }
         if ((value & RTC_ENABLE) < (s->reg_rtccon & RTC_ENABLE)) {
             // tick timer
             ptimer_stop(s->ptimer);
             // clock timer
             ptimer_stop(s->ptimer_1Hz);
-            DPRINTF("stop all timers\n");
+            DPRINT("stop all timers\n");
         }
         if (value & RTC_ENABLE) {
             if ((value & TICK_TIMER_ENABLE) >
@@ -582,7 +582,7 @@ static void stm32_rtc_write(void *opaque, hwaddr offset,
                 (s->reg_ticcnt)) {
                 ptimer_set_count(s->ptimer, s->reg_ticcnt);
                 ptimer_run(s->ptimer, 1);
-                DPRINTF("run tick timer\n");
+                DPRINT("run tick timer\n");
             }
             if ((value & TICK_TIMER_ENABLE) <
                 (s->reg_rtccon & TICK_TIMER_ENABLE)) {
@@ -686,7 +686,7 @@ static void stm32_rtc_reset(DeviceState *d)
 
     qemu_get_timedate(&s->current_tm, 0);
 
-    DPRINTF("Get time from host: %04d-%d-%d (%d) %2d:%02d:%02d\n",
+    DPRINT("Get time from host: %04d-%d-%d (%d) %2d:%02d:%02d\n",
             1900 + s->current_tm.tm_year, s->current_tm.tm_mon, s->current_tm.tm_mday, s->current_tm.tm_wday,
             s->current_tm.tm_hour, s->current_tm.tm_min, s->current_tm.tm_sec);
     //s->RTC_ISR = 0x00000007;
@@ -754,7 +754,7 @@ static int stm32_rtc_init(SysBusDevice *sbd)
     memory_region_init_io(&s->iomem, NULL, &stm32_rtc_ops, s, "stm32-rtc",
             STM32_RTC_REG_MEM_SIZE);
     sysbus_init_mmio(sbd, &s->iomem);
-
+    s->periph = STM32_RTC;
     return 0;
 }
 

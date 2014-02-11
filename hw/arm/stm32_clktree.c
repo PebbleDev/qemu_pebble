@@ -20,6 +20,7 @@
  */
 
 #include "hw/hw.h"
+#include "hw/arm/stm32.h"
 #include "hw/arm/stm32_clktree.h"
 
 
@@ -77,7 +78,7 @@ static void clktree_print_state(Clk clk)
 {
     Clk input_clk = clktree_get_input_clk(clk);
 
-    fprintf(stderr, "CLKTREE: %s Output Change (SrcClk:%s InFreq:%lu OutFreq:%lu Mul:%u Div:%u Enabled:%c)\n",
+    DPRINTF("CLKTREE", -1, "%s Output Change (SrcClk:%s InFreq:%lu OutFreq:%lu Mul:%u Div:%u Enabled:%c)\n",
             clk->name,
             input_clk ? input_clk->name : "None",
             (unsigned long)clk->input_freq,
@@ -119,7 +120,7 @@ static void clktree_recalc_output_freq(Clk clk) {
 
         /* Check the new frequency against the max frequency. */
         if(new_output_freq > clk->max_output_freq) {
-            fprintf(stderr, "%s: Clock %s output frequency (%d Hz) exceeds max frequency (%d Hz).\n",
+            DPRINTF("STM32_CLKTREE", -1, "%s: Clock %s output frequency (%d Hz) exceeds max frequency (%d Hz).\n",
                     __FUNCTION__,
                     clk->name,
                     new_output_freq,

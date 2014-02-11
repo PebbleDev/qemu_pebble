@@ -33,11 +33,10 @@
 #define DEBUG_TIM25
 
 #ifdef DEBUG_TIM25
-#define DPRINTF(fmt, ...) \
-    do { fprintf(stderr, "STM32_TIM25(%s): [%24s:%5d] " fmt, stm32_periph_name(s->periph), __func__, __LINE__, \
-            ## __VA_ARGS__); } while(0)
+#define DPRINT(fmt, ...) \
+    do { DPRINTF("STM32_TIM25", s->periph, fmt, ## __VA_ARGS__); } while(0)
 #else
-#define DPRINTF(fmt, ...) do {} while(0)
+#define DPRINT(fmt, ...) do {} while(0)
 #endif
 
 #define TIM_CR1_OFFSET 0x0
@@ -104,7 +103,7 @@ static void stm32_tim25_trigger_interrupt(STM32TIM25State *s)
 {
     if(extract32(s->TIM_DIER, TIM_DIER_UIE_BIT, 1))
     {
-//        DPRINTF("Triggering irq\n");
+//        DPRINT("Triggering irq\n");
         s->TIM_SR |= BIT(TIM_SR_UIF_BIT);
         qemu_irq_raise(s->irq);
     }
@@ -113,7 +112,7 @@ static void stm32_tim25_trigger_interrupt(STM32TIM25State *s)
 static void stm32_tim25_tick(void *opaque)
 {
     STM32TIM25State *s = (STM32TIM25State*)opaque;
-//    DPRINTF("Timer tick with counter %u and freq %u\n", s->TIM_ARR, s->freq);
+//    DPRINT("Timer tick with counter %u and freq %u\n", s->TIM_ARR, s->freq);
     stm32_tim25_trigger_interrupt(s);
     ptimer_set_freq(s->ptimer, s->freq);
     ptimer_set_count(s->ptimer, s->TIM_ARR);
@@ -127,7 +126,7 @@ static void stm32_tim25_update_frequency(STM32TIM25State *s)
     if(freq > 0 && s->TIM_PSC > 0)
     {
         s->freq = freq / (s->TIM_PSC);
-        DPRINTF("%s is running at %lu Hz.\n", stm32_periph_name(s->periph),
+        DPRINT("%s is running at %lu Hz.\n", stm32_periph_name(s->periph),
                (unsigned long)s->freq);
 //        ptimer_set_freq(s->ptimer, s->freq);
     }
@@ -185,7 +184,7 @@ static void stm32_tim25_TIM_EGR_write(STM32TIM25State* s, const uint64_t value)
     if(test_bit(TIM_EGR_UG_BIT, (const uint64_t*)&value))
     {
         // Re-initialize counter
-        DPRINTF("Re-initializing counter\n");
+        DPRINT("Re-initializing counter\n");
         if(!test_bit(TIM_CR1_UDIS_BIT, &value))
         {
  /*           if(!test_bit(TIM_CR1_URS_BIT, &value))
@@ -196,7 +195,7 @@ static void stm32_tim25_TIM_EGR_write(STM32TIM25State* s, const uint64_t value)
     }
     if(test_bit(TIM_EGR_TG_BIT, (const uint64_t*)&value))
     {
-        DPRINTF("Generate Trigger\n");
+        DPRINT("Generate Trigger\n");
     }
 }
 
@@ -231,11 +230,11 @@ static uint64_t stm32_tim25_read(void *opaque, hwaddr offset,
             break;
 
         default:
-            DPRINTF("WARNING: Not implemented: 0x%X\n", (uint32_t)offset);
+            DPRINT("WARNING: Not implemented: 0x%X\n", (uint32_t)offset);
             //STM32_NOT_IMPL_REG(offset, size);
             break;
     }
-    DPRINTF("Read [0x%X] = 0x%X\n", (uint32_t)offset, (uint32_t)value);
+    DPRINT("Read [0x%X] = 0x%X\n", (uint32_t)offset, (uint32_t)value);
     return value;
 }
 
@@ -243,7 +242,7 @@ static void stm32_tim25_write(void *opaque, hwaddr offset,
         uint64_t value, unsigned size)
 {
     STM32TIM25State* s = (STM32TIM25State*)opaque;
-    DPRINTF("Write [0x%X] = 0x%X\n", (uint32_t)offset, (uint32_t)value);
+    DPRINT("Write [0x%X] = 0x%X\n", (uint32_t)offset, (uint32_t)value);
     switch(offset)
     {
         case TIM_CR1_OFFSET:
@@ -273,7 +272,7 @@ static void stm32_tim25_write(void *opaque, hwaddr offset,
             stm32_tim25_TIM_ARR_write(s, value);
             break;
         default:
-            DPRINTF("Not implemented 0x%X\n", (uint32_t)offset);
+            DPRINT("Not implemented 0x%X\n", (uint32_t)offset);
             //STM32_NOT_IMPL_REG(offset, size);
             break;
     }

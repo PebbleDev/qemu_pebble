@@ -36,10 +36,10 @@
 //#define DEBUG_STM32_SPI
 
 #ifdef DEBUG_STM32_SPI
-#define DPRINTF(fmt, ...)                                       \
-    do { fprintf(stderr, "STM32_SPI: " fmt , ## __VA_ARGS__); fflush(stdout); } while (0)
+#define DPRINT(fmt, ...)                                       \
+    do { DPRINTF("STM32_SPI", s->periph, fmt , ## __VA_ARGS__); fflush(stdout); } while (0)
 #else
-#define DPRINTF(fmt, ...)
+#define DPRINT(fmt, ...)
 #endif
 
 
@@ -190,7 +190,7 @@ static uint64_t stm32_spi_read(void *opaque, hwaddr offset,
             STM32_NOT_IMPL_REG(offset, size);
             break;
     }
-    DPRINTF("Read (%s), Offset=0x%x, value=0x%x\n", stm32_periph_name(s->periph), (unsigned int)offset, val);
+    DPRINT("Read (%s), Offset=0x%x, value=0x%x\n", stm32_periph_name(s->periph), (unsigned int)offset, val);
 
     return val;
 }
@@ -201,7 +201,7 @@ static void stm32_SPI_DR_write(Stm32Spi *s, uint32_t value)
     uint32_t rx;
     s->SPI_SR &= ~SPI_SR_TXE_BIT;
 
-    DPRINTF("%s: DR transfer: value: 0x%08x\n", stm32_periph_name(s->periph), value);
+    DPRINT("%s: DR transfer: value: 0x%08x\n", stm32_periph_name(s->periph), value);
 /*    if(s->SPI_CR1 & SPI_CR1_DFF_BIT)
     {*/
         rx = ssi_transfer(s->spi, value);
@@ -216,7 +216,7 @@ static void stm32_spi_write(void *opaque, hwaddr offset,
                        uint64_t value, unsigned size)
 {
     Stm32Spi *s = (Stm32Spi *)opaque;
-    DPRINTF("Write (%s), Offset=0x%x, Size=%u, value = %" PRIx64 "\n", stm32_periph_name(s->periph), (unsigned int)offset, size, value);
+    DPRINT("Write (%s), Offset=0x%x, Size=%u, value = %" PRIx64 "\n", stm32_periph_name(s->periph), (unsigned int)offset, size, value);
     assert(size == 2);
     switch(offset)
     {
@@ -279,7 +279,7 @@ static void stm32_spi_realize(DeviceState *dev, Error **errp)
 
     s->spi = ssi_create_bus(dev, "spi");
     sysbus_init_irq(sbd, &s->irq);
-    DPRINTF("%s: Initializing with %u CS lines\n",  stm32_periph_name(s->periph), s->num_cs);
+    DPRINT("%s: Initializing with %u CS lines\n",  stm32_periph_name(s->periph), s->num_cs);
     s->cs_lines = g_new(qemu_irq, s->num_cs);
     ssi_auto_connect_slaves(DEVICE(s), s->cs_lines, s->spi);
 
