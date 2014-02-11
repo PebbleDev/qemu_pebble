@@ -128,6 +128,8 @@ static void stm32_pebble_init(QEMUMachineInitArgs *args)
     qdev_connect_gpio_out(gpio_b, 12, lcd_cs_line);
     i2c_bus *i2cbus1 = (i2c_bus *)qdev_get_child_bus(i2c1, "i2c");
     i2c_create_slave(i2cbus1, "lis3dh", 0x19);
+    i2c_create_slave(i2cbus1, "unki2c", 0x18);
+
     i2c_bus *i2cbus2 = (i2c_bus *)qdev_get_child_bus(i2c2, "i2c");
     i2c_create_slave(i2cbus2, "mag3110", 0xE);
 
