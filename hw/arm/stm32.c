@@ -46,14 +46,15 @@ void stm32_hw_warn(const char *fmt, ...)
     }*/
     va_end(ap);
 }
-static char buffer[9];
+static char buffer[32];
 
 // NOTE: This is obviously non-reentrant, but should be OK.
 const char *stm32_get_timestamp(void)
 {
-    time_t now = time(NULL);
-    struct tm *ptm = localtime(&now);
-    strftime(buffer, 9, "%H:%M:%S", ptm);
+    struct timeval tval;
+    gettimeofday(&tval, NULL);
+    struct tm *ptm = localtime(&tval.tv_sec);
+    snprintf(buffer, sizeof(buffer), "%02d:%02d:%02d.%3d", ptm->tm_hour, ptm->tm_min, ptm->tm_sec, (unsigned int)(tval.tv_usec / 1000));
     return buffer;
 }
 
