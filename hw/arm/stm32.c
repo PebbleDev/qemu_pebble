@@ -25,7 +25,7 @@
 #include <time.h>
 
 /* DEFINITIONS */
-
+#define STM32_FLASH_ADDR_START 0x8000000
 /* COMMON */
 
 void stm32_hw_warn(const char *fmt, ...)
@@ -224,6 +224,14 @@ static void stm32_create_timer25_dev(Object *stm32_container,
 
 }
 
+
+static uint64_t kernel_load_translate_fn(void *opaque, uint64_t from_addr) {
+    if (from_addr == STM32_FLASH_ADDR_START) {
+        return 0x00000000;
+    }
+    return from_addr;
+}
+
 qemu_irq *stm32_init(
             ram_addr_t flash_size,
             ram_addr_t ram_size,
@@ -232,7 +240,7 @@ qemu_irq *stm32_init(
             uint32_t osc32_freq)
 {
     MemoryRegion *address_space_mem = get_system_memory();
-    MemoryRegion *flash_alias_mem = g_malloc(sizeof(MemoryRegion));
+//    MemoryRegion *flash_alias_mem = g_malloc(sizeof(MemoryRegion));
     char *otpbacking = g_malloc(sizeof(char)*0x220);
     MemoryRegion *otp_mem = g_malloc(sizeof(MemoryRegion));
     qemu_irq *pic;
@@ -247,13 +255,15 @@ qemu_irq *stm32_init(
 
     Object *stm32_container = container_get(qdev_get_machine(), "/stm32");
 
-    pic = armv7m_init(
+    pic = armv7m_translated_init(stm32_container, address_space_mem, flash_size, ram_size, kernel_filename, kernel_load_translate_fn, NULL, "cortex-m3");
+
+/*    pic = armv7m_init(
               stm32_container,
               address_space_mem,
               flash_size,
               ram_size,
               kernel_filename,
-              "cortex-m3");
+              "cortex-m3");*/
 
     /* The STM32 family stores its Flash memory at some base address in memory
      * (0x08000000 for medium density devices), and then aliases it to the
@@ -265,16 +275,24 @@ qemu_irq *stm32_init(
      * memory at 0x00000000 passes reads through the "real" flash memory at
      * 0x08000000, but it works the same either way. */
     /* TODO: Parameterize the base address of the aliased memory. */
-    memory_region_init_alias(
+
+
+    MemoryRegionSection mrs = memory_region_find(address_space_mem, 0, 4);
+    MemoryRegion *flash_alias = g_new(MemoryRegion, 1);
+    memory_region_init_alias(flash_alias, NULL,  "stm32f2xx.flash.alias", mrs.mr, 0, flash_size * 1024);
+    memory_region_add_subregion(address_space_mem, STM32_FLASH_ADDR_START, flash_alias);
+
+/*    memory_region_init_alias(
             flash_alias_mem,
             NULL,
             "stm32-flash-alias-mem",
             address_space_mem,
             0,
             flash_size);
-    memory_region_add_subregion(address_space_mem, 0x08000000, flash_alias_mem);
+    memory_region_add_subregion(address_space_mem, 0x08000000, flash_alias_mem);*/
 
     memory_region_init_ram_ptr(otp_mem, NULL, "stm32-flash-otp-mem", 0x220, otpbacking);
+    memory_region_set_readonly(otp_mem, true);
     memory_region_add_subregion(address_space_mem, 0x1fff7800, otp_mem);
 
     DeviceState *rcc_dev = qdev_create(NULL, "stm32-rcc");
@@ -337,7 +355,6 @@ qemu_irq *stm32_init(
     object_property_add_child(stm32_container, "syscfg", OBJECT(syscfg_dev), NULL);
     stm32_init_periph(syscfg_dev, STM32_SYSCFG, 0x40013800, NULL);
 
-//    stm32_create_fake_device(stm32_container, STM32_SYSCFG, 0x40013800, 0x400);
     stm32_create_fake_device(stm32_container, STM32_WWDG, 0x40002c00, 0x400);
     stm32_create_fake_device(stm32_container, STM32_IWDG, 0x40003000, 0x400);
 
@@ -350,10 +367,6 @@ qemu_irq *stm32_init(
     stm32_create_i2c_dev(stm32_container, STM32_I2C2, 0x40005800, pic[STM32_I2C2_EV_IRQ], pic[STM32_I2C2_ER_IRQ]);
     stm32_create_i2c_dev(stm32_container, STM32_I2C3, 0x40005c00, pic[STM32_I2C3_EV_IRQ], pic[STM32_I2C3_ER_IRQ]);
 
-/*    stm32_create_fake_device(stm32_container, STM32_I2C1, 0x40005400, 0x400);
-    stm32_create_fake_device(stm32_container, STM32_I2C2, 0x40005800, 0x400);
-    stm32_create_fake_device(stm32_container, STM32_I2C3, 0x40005c00, 0x400);*/
- 
     stm32_create_fake_device(stm32_container, STM32_ADC1, 0x40012000, 0x400);
 
     stm32_create_timer25_dev(stm32_container, STM32_TIM2, 2, rcc_dev, 0x40000000, pic[STM32_TIM2_IRQ]);

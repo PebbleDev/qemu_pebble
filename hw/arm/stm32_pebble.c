@@ -74,8 +74,8 @@ static void stm32_pebble_init(QEMUMachineInitArgs *args)
 {
     const char* kernel_filename = args->kernel_filename;
 
-    stm32_init(/*flash_size*/0x0007ffff,
-               /*ram_size*/0x0001ffff,
+    stm32_init(/*flash_size*/512,
+               /*ram_size*/128,
                kernel_filename,
                16000000,
                32768);

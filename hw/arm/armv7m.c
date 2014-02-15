@@ -177,6 +177,17 @@ qemu_irq *armv7m_init(Object *parent, MemoryRegion *address_space_mem,
                       int flash_size, int sram_size,
                       const char *kernel_filename, const char *cpu_model)
 {
+    return armv7m_translated_init(parent, address_space_mem, flash_size, sram_size,
+                                  kernel_filename, NULL, NULL, cpu_model);
+}
+
+qemu_irq *armv7m_translated_init(Object *parent, MemoryRegion *address_space_mem,
+                      int flash_size, int sram_size,
+                      const char *kernel_filename,
+                      uint64_t (*translate_fn)(void *, uint64_t),
+                      void *translate_opaque,
+                      const char *cpu_model)
+{
     ARMCPU *cpu;
     CPUARMState *env;
     DeviceState *nvic;
@@ -251,7 +262,7 @@ qemu_irq *armv7m_init(Object *parent, MemoryRegion *address_space_mem,
     }
 
     if (kernel_filename) {
-        image_size = load_elf(kernel_filename, NULL, NULL, &entry, &lowaddr,
+        image_size = load_elf(kernel_filename, translate_fn, translate_opaque, &entry, &lowaddr,
                               NULL, big_endian, ELF_MACHINE, 1);
         if (image_size < 0) {
             image_size = load_image_targphys(kernel_filename, 0, flash_size);
