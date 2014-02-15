@@ -141,10 +141,19 @@ static void stm32_pebble_init(QEMUMachineInitArgs *args)
     qemu_set_irq(gpioc_3, 1);*/
 
     KbdState* kbdstate = malloc(sizeof(KbdState));
-    kbdstate->outputs[0] = qdev_get_gpio_in(gpio_c, 3);
+    // Back
+    kbdstate->outputs[0] = qemu_irq_invert(qdev_get_gpio_in(gpio_c, 3));
+    // Up
+    kbdstate->outputs[1] = qemu_irq_invert(qdev_get_gpio_in(gpio_a, 2));
+    // Middle/Enter
+    kbdstate->outputs[2] = qemu_irq_invert(qdev_get_gpio_in(gpio_c, 6));
+    // Down
+    kbdstate->outputs[3] = qemu_irq_invert(qdev_get_gpio_in(gpio_a, 1));
+
+/*    kbdstate->outputs[0] = qdev_get_gpio_in(gpio_c, 3);
     kbdstate->outputs[1] = qdev_get_gpio_in(gpio_c, 6);
     kbdstate->outputs[2] = qdev_get_gpio_in(gpio_c, 11);
-    kbdstate->outputs[3] = qdev_get_gpio_in(gpio_c, 12);
+    kbdstate->outputs[3] = qdev_get_gpio_in(gpio_c, 12);*/
     qemu_add_kbd_event_handler(stm32_pebble_key_event, kbdstate);
  }
 
