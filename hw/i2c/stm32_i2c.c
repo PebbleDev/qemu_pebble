@@ -390,14 +390,6 @@ static uint64_t stm32_i2c_read(void *opaque, hwaddr offset,
     case I2C_DR_OFFSET:
         value = stm32_i2c_I2C_DR_read(s);
         break;
-//        hw_error("I2C read not implemented");
-/*        value = s->i2cds;
-        s->scl_free = true;
-        if (STM32_I2C_MODE(s->i2cstat) == I2CMODE_MASTER_Rx &&
-               (s->i2cstat & I2CSTAT_START_BUSY) &&
-               !(s->i2ccon & I2CCON_INT_PEND)) {
-            stm32_i2c_data_receive(s);
-        }*/
     case I2C_SR1_OFFSET:
         value = s->I2C_SR1;
         s->SR1_READ = true;

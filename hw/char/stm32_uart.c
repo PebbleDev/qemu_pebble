@@ -397,6 +397,8 @@ static int stm32_uart_can_receive(void *opaque)
 
 static void stm32_uart_event(void *opaque, int event)
 {
+    Stm32Uart *s = (Stm32Uart *)opaque;
+    DPRINT("Event: %d\n", event);
     /* Do nothing */
 }
 
@@ -628,28 +630,36 @@ static uint64_t stm32_uart_read(void *opaque, hwaddr offset,
     uint32_t value;
     int start = (offset & 3) * 8;
     int length = size * 8;
+    uint32_t retval = 0;
 
     switch (offset & 0xfffffffc) {
         case USART_SR_OFFSET:
-            return extract64(stm32_uart_USART_SR_read(s), start, length);
+            retval = extract64(stm32_uart_USART_SR_read(s), start, length);
+            break;
         case USART_DR_OFFSET:
             stm32_uart_USART_DR_read(s, &value);
-            return extract64(value, start, length);
+            retval = extract64(value, start, length);
+            break;
         case USART_BRR_OFFSET:
-            return extract64(s->USART_BRR, start, length);
+            retval = extract64(s->USART_BRR, start, length);
+            break;
         case USART_CR1_OFFSET:
-            return extract64(s->USART_CR1, start, length);
+            retval = extract64(s->USART_CR1, start, length);
+            break;
         case USART_CR2_OFFSET:
-            return extract64(s->USART_CR2, start, length);
+            retval = extract64(s->USART_CR2, start, length);
+            break;
         case USART_CR3_OFFSET:
-            return extract64(s->USART_CR3, start, length);
+            retval = extract64(s->USART_CR3, start, length);
+            break;
         case USART_GTPR_OFFSET:
             STM32_NOT_IMPL_REG(offset, size);
-            return 0;
+            break;
         default:
             STM32_BAD_REG(offset, size);
-            return 0;
     }
+    DPRINT("Read from 0x%X (size %u) with value = 0x%X\n", (unsigned int)offset, (unsigned int)size, (unsigned int)retval);
+    return retval;
 }
 
 static void stm32_uart_write(void *opaque, hwaddr offset,
@@ -659,6 +669,7 @@ static void stm32_uart_write(void *opaque, hwaddr offset,
     int start = (offset & 3) * 8;
     int length = size * 8;
 
+    DPRINT("Write to 0x%X (size %u) with value = 0x%X\n", (unsigned int)offset, (unsigned int)size, (unsigned int)value);
     stm32_rcc_check_periph_clk((Stm32Rcc *)s->stm32_rcc, s->periph);
 
     switch (offset & 0xfffffffc) {

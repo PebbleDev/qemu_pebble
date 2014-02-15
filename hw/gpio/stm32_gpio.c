@@ -263,6 +263,7 @@ static uint64_t stm32_gpio_read(void *opaque, hwaddr offset,
             value = s->GPIOx_ODR;
             break;
         case GPIOx_BSRR_OFFSET:
+        case GPIOx_BSRR_OFFSET+2:
             STM32_WARN_WO_REG(offset);
             value = 0;
             break;

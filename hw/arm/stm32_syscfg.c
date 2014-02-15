@@ -83,10 +83,12 @@ static void stm32_syscfg_SYSCFG_EXTICR_write(Stm32Syscfg *s, uint32_t regnum,
         assert(tmpval <= 8);
         if(tmpval && tmpval != extract32(s->exti[regnum], i<<2, 4))
         {
+//            uint32_t old_gpio = extract32(s->exti[regnum], i<<2, 4);
             qemu_irq irq = qdev_get_gpio_in(s->exti_dev, curr_exti);
             DPRINT("Would connect up EXTI GPIO%c to Pin %u\n", 'A' + tmpval, curr_exti);
-              qdev_connect_gpio_out(s->gpio_dev[tmpval], curr_exti, irq);
-//            sysbus_connect_irq(exti_dev, curr_exti, irq);
+            qdev_connect_gpio_out(s->gpio_dev[tmpval], curr_exti, irq);
+/*            DPRINT("Would connect up EXTI GPIO%c to Pin %u\n", 'A' + tmpval, curr_exti);
+            qdev_connect_gpio_out(s->gpio_dev[old_gpio], curr_exti, NULL);*/
         }
     }
     s->exti[regnum] = value;
@@ -114,6 +116,7 @@ static uint64_t stm32_syscfg_read(void *opaque, hwaddr offset,
             STM32_NOT_IMPL_REG(offset, size);
             break;
     }
+    DPRINT("Read from 0x%X with value 0x%X\n", (unsigned int)offset, (unsigned int)value);
     return value;
 }
 
@@ -122,7 +125,7 @@ static void stm32_syscfg_write(void *opaque, hwaddr offset,
 {
     Stm32Syscfg *s = (Stm32Syscfg*)opaque;
     assert(size == 4);
-
+    DPRINT("Write to 0x%X with value 0x%X\n", (unsigned int)offset, (unsigned int)value);
     switch(offset) {
         case SYSCFG_EXTICR1_OFFSET:
         case SYSCFG_EXTICR2_OFFSET:

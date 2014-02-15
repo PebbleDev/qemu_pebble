@@ -27,7 +27,13 @@
 #define STM32_EXTI_DEVICE(obj) \
     OBJECT_CHECK(Stm32Exti, (obj), TYPE_STM32_EXTI_DEVICE)
 
+#define DEBUG_STM32_EXTI
 
+#ifdef DEBUG_STM32_EXTI
+#define DPRINT(fmt, ...) do { DPRINTF("STM32_EXTI", STM32_EXTI, fmt, ## __VA_ARGS__); } while(0)
+#else
+#define DPRINT(fmt, ...) do {} while(0)
+#endif
 
 /* DEFINITIONS*/
 
@@ -79,7 +85,7 @@ static void stm32_exti_trigger(Stm32Exti *s, int line)
 {
     /* Make sure the interrupt for this EXTI line has been enabled. */
     if(s->EXTI_IMR & BIT(line)) {
-        fprintf(stderr, "Interrupt on line %d\n", line);
+        DPRINT("Interrupt on line %d\n", line);
         /* Set the Pending flag for this line, which will trigger the interrupt
          * (if the flag isn't already set). */
         stm32_exti_change_EXTI_PR_bit(s, line, 1);
@@ -195,27 +201,36 @@ static uint64_t stm32_exti_read(void *opaque, hwaddr offset,
                           unsigned size)
 {
     Stm32Exti *s = (Stm32Exti *)opaque;
-
+    uint32_t value = 0;
     assert(size == 4);
 
     switch (offset) {
         case EXTI_IMR_OFFSET:
-            return s->EXTI_IMR;
+            value = s->EXTI_IMR;
+            break;
         case EXTI_EMR_OFFSET:
             /* Do nothing, events are not implemented yet. */
-            return 0;
+            value = 0;
+            break;
         case EXTI_RTSR_OFFSET:
-            return s->EXTI_RTSR;
+            value = s->EXTI_RTSR;
+            break;
         case EXTI_FTSR_OFFSET:
-            return s->EXTI_FTSR;
+            value = s->EXTI_FTSR;
+            break;
         case EXTI_SWIER_OFFSET:
-            return s->EXTI_SWIER;
+            value = s->EXTI_SWIER;
+            break;
         case EXTI_PR_OFFSET:
-            return s->EXTI_PR;
+            value = s->EXTI_PR;
+            break;
         default:
             STM32_BAD_REG(offset, size);
-            return 0;
+            value = 0;
+            break;
     }
+    DPRINT("Reading from 0x%X with value = 0x%X\n", (uint32_t)offset, (uint32_t)value);
+    return value;
 }
 
 static void stm32_exti_write(void *opaque, hwaddr offset,
@@ -225,7 +240,7 @@ static void stm32_exti_write(void *opaque, hwaddr offset,
     int pos, bit_value;
 
     assert(size == 4);
-    fprintf(stderr, "STM32_EXIT: Writing 0x%X to 0x%X\n", (uint32_t)value, (uint32_t)offset);
+    DPRINT("Writing 0x%X to 0x%X\n", (uint32_t)value, (uint32_t)offset);
     if(offset <= EXTI_EMR_OFFSET) {
         switch (offset) {
             case EXTI_IMR_OFFSET:
