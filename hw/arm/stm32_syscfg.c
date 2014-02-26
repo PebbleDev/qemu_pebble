@@ -71,7 +71,7 @@ typedef struct Stm32Syscfg {
 } Stm32Syscfg;
 
 static void stm32_syscfg_SYSCFG_EXTICR_write(Stm32Syscfg *s, uint32_t regnum,
-        uint32_t value)
+        uint32_t value, bool init)
 {
     uint32_t start_exti = regnum << 2;
     uint32_t i, tmpval;
@@ -80,15 +80,18 @@ static void stm32_syscfg_SYSCFG_EXTICR_write(Stm32Syscfg *s, uint32_t regnum,
     {
         uint32_t curr_exti = start_exti + i;
         tmpval = extract32(value, i << 2, 4);
+        uint32_t old_gpio = extract32(s->exti[regnum], i<<2, 4);
         assert(tmpval <= 8);
-        if(tmpval && tmpval != extract32(s->exti[regnum], i<<2, 4))
+        if(old_gpio != tmpval || init)
         {
-//            uint32_t old_gpio = extract32(s->exti[regnum], i<<2, 4);
             qemu_irq irq = qdev_get_gpio_in(s->exti_dev, curr_exti);
-            DPRINT("Would connect up EXTI GPIO%c to Pin %u\n", 'A' + tmpval, curr_exti);
+            DPRINT("Connecting EXTI GPIO%c to Pin %u\n", 'A' + tmpval, curr_exti);
             qdev_connect_gpio_out(s->gpio_dev[tmpval], curr_exti, irq);
-/*            DPRINT("Would connect up EXTI GPIO%c to Pin %u\n", 'A' + tmpval, curr_exti);
-            qdev_connect_gpio_out(s->gpio_dev[old_gpio], curr_exti, NULL);*/
+            if(tmpval != old_gpio)
+            {
+                DPRINT("Disonnecting EXTI GPIO%c to Pin %u\n", 'A' + old_gpio, curr_exti);
+                qdev_connect_gpio_out(s->gpio_dev[old_gpio], curr_exti, NULL);
+            }
         }
     }
     s->exti[regnum] = value;
@@ -131,7 +134,7 @@ static void stm32_syscfg_write(void *opaque, hwaddr offset,
         case SYSCFG_EXTICR2_OFFSET:
         case SYSCFG_EXTICR3_OFFSET:
         case SYSCFG_EXTICR4_OFFSET:
-            stm32_syscfg_SYSCFG_EXTICR_write(s, (offset - SYSCFG_EXTICR1_OFFSET) >> 2, value);
+            stm32_syscfg_SYSCFG_EXTICR_write(s, (offset - SYSCFG_EXTICR1_OFFSET) >> 2, value, false);
             break;
         default:
             STM32_NOT_IMPL_REG(offset, size);
@@ -155,6 +158,11 @@ static void stm32_syscfg_reset(DeviceState *dev)
 {
     Stm32Syscfg *s = STM32_SYSCFG_DEVICE(dev);
     memset(s->exti, 0, sizeof(s->exti));
+/*    stm32_syscfg_SYSCFG_EXTICR_write(s, 0, 0x0, true);
+    stm32_syscfg_SYSCFG_EXTICR_write(s, 1, 0x0, true);
+    stm32_syscfg_SYSCFG_EXTICR_write(s, 2, 0x0, true);
+    stm32_syscfg_SYSCFG_EXTICR_write(s, 3, 0x0, true);*/
+
 }
 
 

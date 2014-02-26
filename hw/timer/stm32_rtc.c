@@ -422,7 +422,9 @@ static uint64_t stm32_rtc_read(void *opaque, hwaddr offset,
         case RTC_WPR_OFFSET:
         case RTC_TSTR_OFFSET:
         case RTC_RTC_TSDR_OFFSET:
-            STM32_NOT_IMPL_REG(offset, size);
+            DPRINT("Read from non-implemented registers 0x%x\n",(uint32_t)offset);
+            value = 0;
+//            STM32_NOT_IMPL_REG(offset, size);
             break;
         case RTC_TAFCR_OFFSET:
             value = 0;

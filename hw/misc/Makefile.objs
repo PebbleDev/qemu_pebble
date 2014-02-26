@@ -43,3 +43,4 @@ obj-$(CONFIG_ZYNQ) += zynq_slcr.o
 
 obj-$(CONFIG_PVPANIC) += pvpanic.o
 obj-y += mag3110.o lis3dh.o unknown_i2c.o
+obj-y += stm32_adc.o stm32_crc.o

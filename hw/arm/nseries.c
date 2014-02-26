@@ -762,7 +762,7 @@ static void n8x0_cbus_setup(struct n800_s *s)
 
 static void n8x0_uart_setup(struct n800_s *s)
 {
-    CharDriverState *radio = uart_hci_init(
+    CharDriverState *radio = uart_csr_hci_init(
                     qdev_get_gpio_in(s->mpu->gpio, N8X0_BT_HOST_WKUP_GPIO));
 
     qdev_connect_gpio_out(s->mpu->gpio, N8X0_BT_RESET_GPIO,

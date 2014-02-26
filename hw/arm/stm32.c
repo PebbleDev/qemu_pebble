@@ -46,6 +46,15 @@ void stm32_hw_warn(const char *fmt, ...)
     }*/
     va_end(ap);
 }
+
+int stm32_get_pc(void)
+{
+    ARMCPU *cpu = ARM_CPU(first_cpu);
+    CPUARMState *env = &cpu->env;
+
+    return env->regs[15];
+}
+
 static char buffer[32];
 
 // NOTE: This is obviously non-reentrant, but should be OK.
@@ -120,6 +129,7 @@ const char *stm32_periph_name_arr[] = {
     [STM32_SYSCFG] = "SYSCFG",
     [STM32_FLASH] = "FLASH",
     [STM32_RTC] = "RTC",
+    [STM32_CRC] = "CRC",
 };
 
 const char *stm32_periph_name(stm32_periph_t periph)
@@ -367,7 +377,20 @@ qemu_irq *stm32_init(
     stm32_create_i2c_dev(stm32_container, STM32_I2C2, 0x40005800, pic[STM32_I2C2_EV_IRQ], pic[STM32_I2C2_ER_IRQ]);
     stm32_create_i2c_dev(stm32_container, STM32_I2C3, 0x40005c00, pic[STM32_I2C3_EV_IRQ], pic[STM32_I2C3_ER_IRQ]);
 
-    stm32_create_fake_device(stm32_container, STM32_ADC1, 0x40012000, 0x400);
+    // stm32_create_fake_device(stm32_container, STM32_ADC1, 0x40012000, 0x400);
+    DeviceState *adc_dev = qdev_create(NULL, "stm32-adc");
+    object_property_add_child(stm32_container, "adc", OBJECT(adc_dev), NULL);
+    stm32_init_periph(adc_dev, STM32_ADC1, 0x40012000, NULL);
+
+
+
+
+
+    DeviceState *crc_dev = qdev_create(NULL, "stm32-crc");
+    object_property_add_child(stm32_container, "crc", OBJECT(crc_dev), NULL);
+    stm32_init_periph(crc_dev, STM32_CRC, 0x40023000, NULL);
+
+
 
     stm32_create_timer25_dev(stm32_container, STM32_TIM2, 2, rcc_dev, 0x40000000, pic[STM32_TIM2_IRQ]);
     stm32_create_timer25_dev(stm32_container, STM32_TIM3, 3, rcc_dev, 0x40000400, pic[STM32_TIM3_IRQ]);

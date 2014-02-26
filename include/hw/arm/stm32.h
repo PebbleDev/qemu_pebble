@@ -29,11 +29,12 @@
 #include "qemu/log.h"
 
 const char *stm32_get_timestamp(void);
+int stm32_get_pc(void);
 
 #define __STM32_FILE__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define DPRINTF(id, perphid, fmt, ...) do { \
-        fprintf(stderr, "%s - %s(%s) [%s:%d]: " fmt, stm32_get_timestamp(), id, \
-                stm32_periph_name(perphid), __STM32_FILE__, __LINE__, \
+        fprintf(stderr, "%s - %s(%s) [%s:%d, PC=0x%08X]: " fmt, stm32_get_timestamp(), id, \
+                stm32_periph_name(perphid), __STM32_FILE__, __LINE__, stm32_get_pc(), \
                 ## __VA_ARGS__); \
     } while(0);
 
@@ -132,6 +133,7 @@ enum
   STM32_SYSCFG,
   STM32_FLASH,
   STM32_CLKTREE,
+  STM32_CRC,
   STM32_PERIPH_COUNT,
 };
 

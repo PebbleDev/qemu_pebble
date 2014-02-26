@@ -36,7 +36,7 @@
 
 /* See the README file for details on these settings. */
 #define DEBUG_STM32_UART
-//#define STM32_UART_NO_BAUD_DELAY
+#define STM32_UART_NO_BAUD_DELAY
 //#define STM32_UART_ENABLE_OVERRUN
 
 #ifdef DEBUG_STM32_UART
@@ -47,10 +47,12 @@
 #endif
 
 #define USART_SR_OFFSET 0x00
+#define USART_SR_CTS_BIT 9
 #define USART_SR_TXE_BIT 7
 #define USART_SR_TC_BIT 6
 #define USART_SR_RXNE_BIT 5
 #define USART_SR_ORE_BIT 3
+
 
 #define USART_DR_OFFSET 0x04
 
@@ -72,6 +74,7 @@
 #define USART_CR2_STOP_MASK 0x00003000
 
 #define USART_CR3_OFFSET 0x14
+#define USART_CR3_CTSIE_BIT 10
 #define USART_CR3_CTSE_BIT 9
 #define USART_CR3_RTSE_BIT 8
 
@@ -113,25 +116,29 @@ struct Stm32Uart {
         USART_SR_TC,
         USART_SR_RXNE,
         USART_SR_ORE,
+        USART_SR_CTS,
         USART_CR1_UE,
         USART_CR1_TXEIE,
         USART_CR1_TCIE,
         USART_CR1_RXNEIE,
         USART_CR1_TE,
-        USART_CR1_RE;
+        USART_CR1_RE,
+        USART_CR3_CTSIE,
+        cts;
 
     bool sr_read_since_ore_set;
-
     /* Indicates whether the USART is currently receiving a byte. */
     bool receiving;
 
     /* Timers used to simulate a delay corresponding to the baud rate. */
     struct QEMUTimer *rx_timer;
     struct QEMUTimer *tx_timer;
+    struct QEMUTimer *modem_status_poll;
 
     CharDriverState *chr;
 
     qemu_irq irq;
+    qemu_irq cts_irq;
     int curr_irq_level;
 };
 
@@ -177,8 +184,7 @@ static void stm32_uart_clk_irq_handler(void *opaque, int n, int level)
 {
     Stm32Uart *s = (Stm32Uart *)opaque;
 
-    assert(n == 0);
-
+    assert(n==0);
     /* Only update the BAUD rate if the IRQ is being set. */
     if(level) {
         stm32_uart_baud_update(s);
@@ -194,7 +200,8 @@ static void stm32_uart_update_irq(Stm32Uart *s) {
        (s->USART_CR1_TCIE & s->USART_SR_TC) |
        (s->USART_CR1_TXEIE & s->USART_SR_TXE) |
        (s->USART_CR1_RXNEIE &
-               (s->USART_SR_ORE | s->USART_SR_RXNE));
+               (s->USART_SR_ORE | s->USART_SR_RXNE)) |
+       (s->USART_CR3_CTSIE & s->USART_SR_CTS);
 
     /* Only trigger an interrupt if the IRQ level changes.  We probably could
      * set the level regardless, but we will just check for good measure.
@@ -353,7 +360,28 @@ static void stm32_uart_tx_timer_expire(void *opaque) {
     stm32_uart_tx_complete(s);
 }
 
+static void stm32_uart_update_modem(void *opaque) {
+    Stm32Uart *s = (Stm32Uart *)opaque;
 
+    timer_del(s->modem_status_poll);
+
+    uint32_t flags;
+
+    if (qemu_chr_fe_ioctl(s->chr,CHR_IOCTL_SERIAL_GET_TIOCM, &flags) == -ENOTSUP) {
+        DPRINT("CHR_IOCTL_SERIAL_GET_TIOCM not supported!\n");
+        return;
+    }
+    if(s->cts != !!(flags & CHR_TIOCM_CTS))
+    {
+        DPRINT("Setting CTS flags (new CTSvalue %d)\n", !!(flags & CHR_TIOCM_CTS));
+        s->USART_SR_CTS = 1;
+        qemu_set_irq(s->cts_irq, !!(flags & CHR_TIOCM_CTS));
+    }
+    s->cts = !!(flags & CHR_TIOCM_CTS);
+
+    stm32_uart_update_irq(s);
+    timer_mod(s->modem_status_poll, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + get_ticks_per_sec() / 100);
+}
 
 
 
@@ -454,7 +482,8 @@ static uint32_t stm32_uart_USART_SR_read(Stm32Uart *s)
     return (s->USART_SR_TXE << USART_SR_TXE_BIT) |
            (s->USART_SR_TC << USART_SR_TC_BIT) |
            (s->USART_SR_RXNE << USART_SR_RXNE_BIT) |
-           (s->USART_SR_ORE << USART_SR_ORE_BIT);
+           (s->USART_SR_ORE << USART_SR_ORE_BIT) |
+           (s->USART_SR_CTS << USART_SR_CTS_BIT);
 }
 
 
@@ -463,7 +492,7 @@ static uint32_t stm32_uart_USART_SR_read(Stm32Uart *s)
 
 static void stm32_uart_USART_SR_write(Stm32Uart *s, uint32_t new_value)
 {
-    uint32_t new_TC, new_RXNE;
+    uint32_t new_TC, new_RXNE, new_CTS;
 
     new_TC = extract32(new_value, USART_SR_TC_BIT, 1);
     /* The Transmit Complete flag can be cleared, but not set. */
@@ -478,6 +507,13 @@ static void stm32_uart_USART_SR_write(Stm32Uart *s, uint32_t new_value)
         hw_error("Software attempted to set USART RXNE bit\n");
     }
     s->USART_SR_RXNE = new_RXNE;
+
+    new_CTS = extract32(new_value, USART_SR_CTS_BIT, 1);
+    /* The Read Data Register Not Empty flag can be cleared, but not set. */
+    if(new_CTS) {
+        hw_error("Software attempted to set USART CTS bit\n");
+    }
+    s->USART_SR_CTS = new_CTS;
 
     stm32_uart_update_irq(s);
 }
@@ -579,6 +615,12 @@ static void stm32_uart_USART_CR1_write(Stm32Uart *s, uint32_t new_value,
     s->USART_CR1_TXEIE = extract32(new_value, USART_CR1_TXEIE_BIT, 1);
     s->USART_CR1_TCIE = extract32(new_value, USART_CR1_TCIE_BIT, 1);
     s->USART_CR1_RXNEIE = extract32(new_value, USART_CR1_RXNEIE_BIT, 1);
+    if(extract32(new_value, USART_CR3_CTSIE_BIT, 1) != s->USART_CR3_CTSIE)
+    {
+        DPRINT("Setting CTSIE to %d\n", extract32(new_value, USART_CR3_CTSIE_BIT, 1));
+    }
+
+    s->USART_CR3_CTSIE = extract32(new_value, USART_CR3_CTSIE_BIT, 1);
 
     s->USART_CR1_TE = extract32(new_value, USART_CR1_TE_BIT, 1);
     s->USART_CR1_RE = extract32(new_value, USART_CR1_RE_BIT, 1);
@@ -631,7 +673,8 @@ static uint64_t stm32_uart_read(void *opaque, hwaddr offset,
     int start = (offset & 3) * 8;
     int length = size * 8;
     uint32_t retval = 0;
-
+    DPRINT("Uart_read: 0x%x, size: 0x%x, start: 0x%x, len: 0x%x\n",
+           (uint32_t)offset, size, start, length);
     switch (offset & 0xfffffffc) {
         case USART_SR_OFFSET:
             retval = extract64(stm32_uart_USART_SR_read(s), start, length);
@@ -730,6 +773,7 @@ void stm32_uart_connect(Stm32Uart *s, CharDriverState *chr)
                 stm32_uart_receive,
                 stm32_uart_event,
                 (void *)s);
+        timer_mod(s->modem_status_poll, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + get_ticks_per_sec() / 100);
     }
 }
 
@@ -751,11 +795,15 @@ static int stm32_uart_init(SysBusDevice *dev)
     sysbus_init_mmio(dev, &s->iomem);
 
     sysbus_init_irq(dev, &s->irq);
+    sysbus_init_irq(dev, &s->cts_irq);
 
     s->rx_timer =
           timer_new_ns(QEMU_CLOCK_VIRTUAL,(QEMUTimerCB *)stm32_uart_rx_timer_expire, s);
     s->tx_timer =
           timer_new_ns(QEMU_CLOCK_VIRTUAL,(QEMUTimerCB *)stm32_uart_tx_timer_expire, s);
+
+    s->modem_status_poll = timer_new_ns(QEMU_CLOCK_VIRTUAL, (QEMUTimerCB *) stm32_uart_update_modem, s);
+
 
     /* Register handlers to handle updates to the USART's peripheral clock. */
     clk_irq =

@@ -1,7 +1,9 @@
 /*
  * Bluetooth serial HCI transport.
- * CSR41814 HCI with H4p vendor extensions.
+ * TI CC256x HCI with H4p vendor extensions.
  *
+ * Copyright (C) 2014 Jens Andersen <jens.andersen@gmail.com>
+ * Based on hci-csr.c by:
  * Copyright (C) 2008 Andrzej Zaborowski  <balrog@zabor.org>
  *
  * This program is free software; you can redistribute it and/or
@@ -25,7 +27,15 @@
 #include "sysemu/bt.h"
 #include "hw/bt.h"
 
-struct csrhci_s {
+#define HCI_CC256X_DEBUG
+
+#ifdef HCI_CC256X_DEBUG
+#define DPRINT(fmt, ...) do { fprintf(stderr, "HCI_CC256X (%s:%d): " fmt,__FILE__, __LINE__, ## __VA_ARGS__); } while(0)
+#else
+#define DPRINT(fmt, ...) do { } while(0)
+#endif
+
+struct cc256xhci_s {
     int enable;
     qemu_irq *pins;
     int pin_state;
@@ -58,7 +68,7 @@ enum {
 };
 
 /* CSR41814 negotiation start magic packet */
-static const uint8_t csrhci_neg_packet[] = {
+static const uint8_t cc256xhci_neg_packet[] = {
     H4_NEG_PKT, 10,
     0x00, 0xa0, 0x01, 0x00, 0x00,
     0x4c, 0x00, 0x96, 0x00, 0x00,
@@ -66,12 +76,17 @@ static const uint8_t csrhci_neg_packet[] = {
 
 /* CSR41814 vendor-specific command OCFs */
 enum {
-    OCF_CSR_SEND_FIRMWARE = 0x000,
+    OCF_HCI_VS_WRITE_BD_ADDR = 0x006,
+    OCF_HCI_VS_SLEEP_MODE_CONFIGURATIONS = 0x10c,
+    OCF_HCI_VS_HCILL_PARAMETERS = 0x12b,
+    OCF_HCI_VS_LE_ENABLE = 0x15b
 };
 
-static inline void csrhci_fifo_wake(struct csrhci_s *s)
+static inline void cc256xhci_fifo_wake(struct cc256xhci_s *s)
 {
-    if (!s->enable || !s->out_len)
+    if (!s->enable)
+        DPRINT("Warning: Fifo_wake without enable!\n");
+    if(!s->out_len)
         return;
 
     /* XXX: Should wait for s->modem_state & CHR_TIOCM_RTS? */
@@ -90,8 +105,8 @@ static inline void csrhci_fifo_wake(struct csrhci_s *s)
         timer_mod(s->out_tm, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + s->baud_delay);
 }
 
-#define csrhci_out_packetz(s, len) memset(csrhci_out_packet(s, len), 0, len)
-static uint8_t *csrhci_out_packet(struct csrhci_s *s, int len)
+#define cc256xhci_out_packetz(s, len) memset(cc256xhci_out_packet(s, len), 0, len)
+static uint8_t *cc256xhci_out_packet(struct cc256xhci_s *s, int len)
 {
     int off = s->out_start + s->out_len;
 
@@ -114,10 +129,10 @@ static uint8_t *csrhci_out_packet(struct csrhci_s *s, int len)
     return s->outfifo + off - s->out_size;
 }
 
-static inline uint8_t *csrhci_out_packet_csr(struct csrhci_s *s,
+static inline uint8_t *cc256xhci_out_packet_csr(struct cc256xhci_s *s,
                 int type, int len)
 {
-    uint8_t *ret = csrhci_out_packetz(s, len + 2);
+    uint8_t *ret = cc256xhci_out_packetz(s, len + 2);
 
     *ret ++ = type;
     *ret ++ = len;
@@ -125,10 +140,10 @@ static inline uint8_t *csrhci_out_packet_csr(struct csrhci_s *s,
     return ret;
 }
 
-static inline uint8_t *csrhci_out_packet_event(struct csrhci_s *s,
+static inline uint8_t *cc256xhci_out_packet_event(struct cc256xhci_s *s,
                 int evt, int len)
 {
-    uint8_t *ret = csrhci_out_packetz(s,
+    uint8_t *ret = cc256xhci_out_packetz(s,
                     len + 1 + sizeof(struct hci_event_hdr));
 
     *ret ++ = H4_EVT_PKT;
@@ -138,55 +153,47 @@ static inline uint8_t *csrhci_out_packet_event(struct csrhci_s *s,
     return ret + sizeof(struct hci_event_hdr);
 }
 
-static void csrhci_in_packet_vendor(struct csrhci_s *s, int ocf,
+static void cc256xhci_in_packet_vendor(struct cc256xhci_s *s, int ocf,
                 uint8_t *data, int len)
 {
-    int offset;
+//    int offset;
     uint8_t *rpkt;
-
+    DPRINT("Got vendor packet 0x%X len: %d\n", ocf, len);
     switch (ocf) {
-    case OCF_CSR_SEND_FIRMWARE:
-        /* Check if this is the bd_address packet */
-        if (len >= 18 + 8 && data[12] == 0x01 && data[13] == 0x00) {
-            offset = 18;
-            s->bd_addr.b[0] = data[offset + 7];	/* Beyond cmd packet end(!?) */
-            s->bd_addr.b[1] = data[offset + 6];
-            s->bd_addr.b[2] = data[offset + 4];
-            s->bd_addr.b[3] = data[offset + 0];
-            s->bd_addr.b[4] = data[offset + 3];
-            s->bd_addr.b[5] = data[offset + 2];
+        case OCF_HCI_VS_SLEEP_MODE_CONFIGURATIONS:
+            rpkt = cc256xhci_out_packet_event(s, EVT_VENDOR, 1);
+            /* Status bytes: no error */
+            rpkt[0] = 0x00;
+            break;
+            break;
 
-            s->hci->bdaddr_set(s->hci, s->bd_addr.b);
-            fprintf(stderr, "%s: bd_address loaded from firmware: "
-                            "%02x:%02x:%02x:%02x:%02x:%02x\n", __FUNCTION__,
-                            s->bd_addr.b[0], s->bd_addr.b[1], s->bd_addr.b[2],
-                            s->bd_addr.b[3], s->bd_addr.b[4], s->bd_addr.b[5]);
-        }
+        case OCF_HCI_VS_HCILL_PARAMETERS:
+            DPRINT("inactivity_timeout=0x%04X, retransmit_timeout=0x%04X, rts_pulse_width=0x%02X\n",
+                   *(uint16_t*)data, *(uint16_t*)&data[2], data[4]);
+            rpkt = cc256xhci_out_packet_event(s, EVT_VENDOR, 1);
+            /* Status bytes: no error */
+            rpkt[0] = 0x00;
+            break;
 
-        rpkt = csrhci_out_packet_event(s, EVT_VENDOR, 11);
-        /* Status bytes: no error */
-        rpkt[9] = 0x00;
-        rpkt[10] = 0x00;
-        break;
-
-    default:
-        fprintf(stderr, "%s: got a bad CMD packet\n", __FUNCTION__);
+        default:
+            fprintf(stderr, "%s: got a bad CMD packet\n", __FUNCTION__);
         return;
     }
 
-    csrhci_fifo_wake(s);
+    cc256xhci_fifo_wake(s);
 }
 
-static void csrhci_in_packet(struct csrhci_s *s, uint8_t *pkt)
+static void cc256xhci_in_packet(struct cc256xhci_s *s, uint8_t *pkt)
 {
     uint8_t *rpkt;
     int opc;
 
+    DPRINT("In packet, CMD: 0x%X\n", *pkt);
     switch (*pkt ++) {
     case H4_CMD_PKT:
         opc = le16_to_cpu(((struct hci_command_hdr *) pkt)->opcode);
         if (cmd_opcode_ogf(opc) == OGF_VENDOR_CMD) {
-            csrhci_in_packet_vendor(s, cmd_opcode_ocf(opc),
+            cc256xhci_in_packet_vendor(s, cmd_opcode_ocf(opc),
                             pkt + sizeof(struct hci_command_hdr),
                             s->in_len - sizeof(struct hci_command_hdr) - 1);
             return;
@@ -213,14 +220,14 @@ static void csrhci_in_packet(struct csrhci_s *s, uint8_t *pkt)
         break;
 
     case H4_NEG_PKT:
-        if (s->in_hdr != sizeof(csrhci_neg_packet) ||
-                        memcmp(pkt - 1, csrhci_neg_packet, s->in_hdr)) {
+        if (s->in_hdr != sizeof(cc256xhci_neg_packet) ||
+                        memcmp(pkt - 1, cc256xhci_neg_packet, s->in_hdr)) {
             fprintf(stderr, "%s: got a bad NEG packet\n", __FUNCTION__);
             return;
         }
         pkt += 2;
 
-        rpkt = csrhci_out_packet_csr(s, H4_NEG_PKT, 10);
+        rpkt = cc256xhci_out_packet_csr(s, H4_NEG_PKT, 10);
 
         *rpkt ++ = 0x20;	/* Operational settings negotiation Ok */
         memcpy(rpkt, pkt, 7); rpkt += 7;
@@ -234,7 +241,7 @@ static void csrhci_in_packet(struct csrhci_s *s, uint8_t *pkt)
             return;
         }
 
-        rpkt = csrhci_out_packet_csr(s, H4_ALIVE_PKT, 2);
+        rpkt = cc256xhci_out_packet_csr(s, H4_ALIVE_PKT, 2);
 
         *rpkt ++ = 0xcc;
         *rpkt = 0x00;
@@ -247,10 +254,10 @@ static void csrhci_in_packet(struct csrhci_s *s, uint8_t *pkt)
         break;
     }
 
-    csrhci_fifo_wake(s);
+    cc256xhci_fifo_wake(s);
 }
 
-static int csrhci_header_len(const uint8_t *pkt)
+static int cc256xhci_header_len(const uint8_t *pkt)
 {
     switch (pkt[0]) {
     case H4_CMD_PKT:
@@ -270,7 +277,7 @@ static int csrhci_header_len(const uint8_t *pkt)
     exit(-1);
 }
 
-static int csrhci_data_len(const uint8_t *pkt)
+static int cc256xhci_data_len(const uint8_t *pkt)
 {
     switch (*pkt ++) {
     case H4_CMD_PKT:
@@ -294,27 +301,31 @@ static int csrhci_data_len(const uint8_t *pkt)
     exit(-1);
 }
 
-static int csrhci_write(struct CharDriverState *chr,
+static int cc256xhci_write(struct CharDriverState *chr,
                 const uint8_t *buf, int len)
 {
-    struct csrhci_s *s = (struct csrhci_s *) chr->opaque;
+    struct cc256xhci_s *s = (struct cc256xhci_s *) chr->opaque;
     int plen = s->in_len;
-
+    DPRINT("cc256xhci_write (len: %d, plen: %d)\n", len, plen);
+    if(len == 1)
+        DPRINT("Data: 0x%02X\n", *buf);
+    // HACKY, HACKY - need to hook up enable to reset or shutdown pin
     if (!s->enable)
-        return 0;
+        DPRINT("Write without enable!\n");
+//        return 0;
 
     s->in_len += len;
     memcpy(s->inpkt + plen, buf, len);
 
     while (1) {
         if (s->in_len >= 2 && plen < 2)
-            s->in_hdr = csrhci_header_len(s->inpkt) + 1;
+            s->in_hdr = cc256xhci_header_len(s->inpkt) + 1;
 
         if (s->in_len >= s->in_hdr && plen < s->in_hdr)
-            s->in_data = csrhci_data_len(s->inpkt) + s->in_hdr;
+            s->in_data = cc256xhci_data_len(s->inpkt) + s->in_hdr;
 
         if (s->in_len >= s->in_data) {
-            csrhci_in_packet(s, s->inpkt);
+            cc256xhci_in_packet(s, s->inpkt);
 
             memmove(s->inpkt, s->inpkt + s->in_len, s->in_len - s->in_data);
             s->in_len -= s->in_data;
@@ -328,63 +339,62 @@ static int csrhci_write(struct CharDriverState *chr,
     return len;
 }
 
-static void csrhci_out_hci_packet_event(void *opaque,
+static void cc256xhci_out_hci_packet_event(void *opaque,
                 const uint8_t *data, int len)
 {
-    struct csrhci_s *s = (struct csrhci_s *) opaque;
-    uint8_t *pkt = csrhci_out_packet(s, (len + 2) & ~1);	/* Align */
-
+    struct cc256xhci_s *s = (struct cc256xhci_s *) opaque;
+    DPRINT("Packet event length %d\n", len);
+    uint8_t *pkt = cc256xhci_out_packet(s, (len + 2) & ~1);	/* Align */
     *pkt ++ = H4_EVT_PKT;
     memcpy(pkt, data, len);
 
-    csrhci_fifo_wake(s);
+    cc256xhci_fifo_wake(s);
 }
 
-static void csrhci_out_hci_packet_acl(void *opaque,
+static void cc256xhci_out_hci_packet_acl(void *opaque,
                 const uint8_t *data, int len)
 {
-    struct csrhci_s *s = (struct csrhci_s *) opaque;
-    uint8_t *pkt = csrhci_out_packet(s, (len + 2) & ~1);	/* Align */
+    struct cc256xhci_s *s = (struct cc256xhci_s *) opaque;
+    uint8_t *pkt = cc256xhci_out_packet(s, (len + 2) & ~1);	/* Align */
 
     *pkt ++ = H4_ACL_PKT;
     pkt[len & ~1] = 0;
     memcpy(pkt, data, len);
 
-    csrhci_fifo_wake(s);
+    cc256xhci_fifo_wake(s);
 }
 
-static int csrhci_ioctl(struct CharDriverState *chr, int cmd, void *arg)
+static int cc256xhci_ioctl(struct CharDriverState *chr, int cmd, void *arg)
 {
-    QEMUSerialSetParams *ssp;
-    struct csrhci_s *s = (struct csrhci_s *) chr->opaque;
-    int prev_state = s->modem_state;
+    struct cc256xhci_s *s = (struct cc256xhci_s *) chr->opaque;
+//    int prev_state = s->modem_state;
 
     switch (cmd) {
-    case CHR_IOCTL_SERIAL_SET_PARAMS:
+/*    case CHR_IOCTL_SERIAL_SET_PARAMS:
         ssp = (QEMUSerialSetParams *) arg;
         s->baud_delay = get_ticks_per_sec() / ssp->speed;
-        /* Moments later... (but shorter than 100ms) */
+        // Moments later... (but shorter than 100ms)
         s->modem_state |= CHR_TIOCM_CTS;
-        break;
+        break;*/
 
     case CHR_IOCTL_SERIAL_GET_TIOCM:
         *(int *) arg = s->modem_state;
         break;
 
-    case CHR_IOCTL_SERIAL_SET_TIOCM:
+/*    case CHR_IOCTL_SERIAL_SET_TIOCM:
         s->modem_state = *(int *) arg;
         if (~s->modem_state & prev_state & CHR_TIOCM_RTS)
             s->modem_state &= ~CHR_TIOCM_CTS;
-        break;
-
+        break;*/
     default:
         return -ENOTSUP;
     }
     return 0;
 }
 
-static void csrhci_reset(struct csrhci_s *s)
+static void cc256xhci_reset(struct cc256xhci_s *s)
 {
+    DPRINT("Resetting...\n");
     s->out_len = 0;
     s->out_size = FIFO_LEN;
     s->in_len = 0;
@@ -394,61 +404,69 @@ static void csrhci_reset(struct csrhci_s *s)
     s->in_data = INT_MAX;
 
     s->modem_state = 0;
+
     /* After a while... (but sooner than 10ms) */
     s->modem_state |= CHR_TIOCM_CTS;
 
     memset(&s->bd_addr, 0, sizeof(bdaddr_t));
 }
 
-static void csrhci_out_tick(void *opaque)
+static void cc256xhci_out_tick(void *opaque)
 {
-    csrhci_fifo_wake((struct csrhci_s *) opaque);
+    DPRINT("Tick\n");
+    cc256xhci_fifo_wake((struct cc256xhci_s *) opaque);
 }
 
-static void csrhci_pins(void *opaque, int line, int level)
+static void cc256xhci_pins(void *opaque, int line, int level)
 {
-    struct csrhci_s *s = (struct csrhci_s *) opaque;
-    int state = s->pin_state;
+    struct cc256xhci_s *s = (struct cc256xhci_s *) opaque;
+//    int state = s->pin_state;
+    DPRINT("Pin %d changed to %d\n", line, level);
 
     s->pin_state &= ~(1 << line);
     s->pin_state |= (!!level) << line;
-
-    if ((state & ~s->pin_state) & (1 << csrhci_pin_reset)) {
+//    if ((state & ~s->pin_state) & (1 << cc256xhci_pin_nshutdown)) {
+    if(!s->enable && line == cc256xhci_pin_nshutdown && level)
+    {
+        DPRINT("nSHUTD Went high, asserting CTS\n");
         /* TODO: Disappear from lower layers */
-        csrhci_reset(s);
-    }
-
-    if (s->pin_state == 3 && state != 3) {
+//        cc256xhci_reset(s);
+        // Should happen up to 100ms after...Possibly too soon?
+        s->modem_state &= ~CHR_TIOCM_CTS;
         s->enable = 1;
-        /* TODO: Wake lower layers up */
+    }
+    if(!s->enable && line == cc256xhci_pin_nshutdown && level)
+    {
+        DPRINT("nSHUTD went low, resetting\n");
+        cc256xhci_reset(s);
     }
 }
 
-qemu_irq *csrhci_pins_get(CharDriverState *chr)
+qemu_irq *cc256xhci_pins_get(CharDriverState *chr)
 {
-    struct csrhci_s *s = (struct csrhci_s *) chr->opaque;
+    struct cc256xhci_s *s = (struct cc256xhci_s *) chr->opaque;
 
     return s->pins;
 }
 
-CharDriverState *uart_csr_hci_init(qemu_irq wakeup)
+CharDriverState *uart_cc256x_hci_init(qemu_irq wakeup)
 {
-    struct csrhci_s *s = (struct csrhci_s *)
-            g_malloc0(sizeof(struct csrhci_s));
+    struct cc256xhci_s *s = (struct cc256xhci_s *)
+            g_malloc0(sizeof(struct cc256xhci_s));
 
     s->chr.opaque = s;
-    s->chr.chr_write = csrhci_write;
-    s->chr.chr_ioctl = csrhci_ioctl;
+    s->chr.chr_write = cc256xhci_write;
+    s->chr.chr_ioctl = cc256xhci_ioctl;
     s->chr.avail_connections = 1;
 
     s->hci = qemu_next_hci();
     s->hci->opaque = s;
-    s->hci->evt_recv = csrhci_out_hci_packet_event;
-    s->hci->acl_recv = csrhci_out_hci_packet_acl;
+    s->hci->evt_recv = cc256xhci_out_hci_packet_event;
+    s->hci->acl_recv = cc256xhci_out_hci_packet_acl;
 
-    s->out_tm = timer_new_ns(QEMU_CLOCK_VIRTUAL, csrhci_out_tick, s);
-    s->pins = qemu_allocate_irqs(csrhci_pins, s, __csrhci_pins);
-    csrhci_reset(s);
+    s->out_tm = timer_new_ns(QEMU_CLOCK_VIRTUAL, cc256xhci_out_tick, s);
+    s->pins = qemu_allocate_irqs(cc256xhci_pins, s, __cc256xhci_pins);
+    cc256xhci_reset(s);
 
     return &s->chr;
 }

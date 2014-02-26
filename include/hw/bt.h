@@ -128,7 +128,19 @@ enum {
     __csrhci_pins,
 };
 qemu_irq *csrhci_pins_get(CharDriverState *chr);
-CharDriverState *uart_hci_init(qemu_irq wakeup);
+CharDriverState *uart_csr_hci_init(qemu_irq wakeup);
+
+
+/* bt-hci-cc256x.c */
+enum {
+    cc256xhci_pin_nshutdown,
+    cc256xhci_pin_wakeup,
+    __cc256xhci_pins,
+};
+
+qemu_irq *cc256xhci_pins_get(CharDriverState *chr);
+CharDriverState *uart_cc256x_hci_init(qemu_irq wakeup);
+
 
 /* bt-l2cap.c */
 struct bt_l2cap_device_s;

@@ -223,15 +223,24 @@ static void stm32_gpio_GPIOx_MODER_write(Stm32Gpio *s, uint32_t new_value)
     s->GPIOx_MODER = new_value;
 }
 
-static void stm32_gpio_GPIOx_AFRx_write(Stm32Gpio *s, uint64_t new_value)
+static void stm32_gpio_GPIOx_AFRx_write(Stm32Gpio *s, uint32_t afrl, uint32_t afrh)
 {
     int pin;
+    uint64_t old_value = (uint64_t)s->GPIOx_AFRH << 32 | s->GPIOx_AFRL;
+    uint64_t new_value = (uint64_t)afrh << 32 | afrl;
+
     for(pin=0; pin < STM32_GPIO_PIN_COUNT; pin++)
     {
-//        int val = extract64(new_value, pin*4, 4);
-/*        DPRINT("%s: Pin %u set to mode AF%u\n",
-                stm32_periph_name(s->periph), pin, val);*/
+        int valnew = extract64(new_value, pin*4, 4);
+        int valold = extract64(old_value, pin*4, 4);
+        if(valnew != valold)
+        {
+            DPRINT("%s: Pin %u changed to mode AF%u\n",
+                   stm32_periph_name(s->periph), pin, valnew);
+        }
     }
+    s->GPIOx_AFRL = afrl;
+    s->GPIOx_AFRH = afrh;
 }
 
 static uint64_t stm32_gpio_read(void *opaque, hwaddr offset,
@@ -320,12 +329,10 @@ static void stm32_gpio_writew(Stm32Gpio *s, hwaddr offset,
                     (s->GPIOx_ODR & reset_mask) | set_mask);
             break;
         case GPIOx_AFRL_OFFSET:
-            s->GPIOx_AFRL = value;
-            stm32_gpio_GPIOx_AFRx_write(s, (uint64_t)s->GPIOx_AFRH << 32 | s->GPIOx_AFRL);
+            stm32_gpio_GPIOx_AFRx_write(s, value, s->GPIOx_AFRH);
             break;
         case GPIOx_AFRH_OFFSET:
-            s->GPIOx_AFRH = value;
-            stm32_gpio_GPIOx_AFRx_write(s, (uint64_t)s->GPIOx_AFRH << 32 | s->GPIOx_AFRL);
+            stm32_gpio_GPIOx_AFRx_write(s, s->GPIOx_AFRL, value);
             break;
         case GPIOx_LCKR_OFFSET:
             /* Locking is not implemented */
@@ -433,6 +440,31 @@ static void stm32_gpio_reset(DeviceState *dev)
 
     /* Leave input state as it is - only outputs and config are affected
      * by the GPIO reset. */
+
+/*    uint32_t val=0;
+    // Hacky hacky 
+    switch(s->periph)
+    {
+        case STM32_GPIOA:
+            val = 0xa69e;
+            break;
+        case STM32_GPIOB:
+            val = 0x4190;
+            break;
+        case STM32_GPIOC:
+            val = 0xCC8;
+            break;
+
+        default:
+            break;
+    }
+    for(pin=0; pin < STM32_GPIO_PIN_COUNT; pin++)
+    {
+        if(val & BIT(pin))
+        {
+            stm32_gpio_in_trigger(s, pin, 1);
+        }
+    }*/
 }
 
 

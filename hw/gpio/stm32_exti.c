@@ -89,6 +89,9 @@ static void stm32_exti_trigger(Stm32Exti *s, int line)
         /* Set the Pending flag for this line, which will trigger the interrupt
          * (if the flag isn't already set). */
         stm32_exti_change_EXTI_PR_bit(s, line, 1);
+    } else
+    {
+        DPRINT("Interrupt on line %d but masked\n", line);
     }
 }
 
@@ -101,6 +104,7 @@ static void stm32_exti_gpio_in_handler(void *opaque, int n, int level)
 
     assert(pin < STM32_GPIO_PIN_COUNT);
 
+    DPRINT("Exti Pin %d changed to level %d, Rise=%d, Fall=%d\n", n, level, !!(s->EXTI_RTSR & BIT(pin)), !!(s->EXTI_FTSR & BIT(pin)));
     /* Check the level - if it is rising, then trigger an interrupt if the
      * corresponding Rising Trigger Selection Register flag is set.  Otherwise,
      * trigger if the Falling Trigger Selection Register flag is set.
@@ -237,16 +241,25 @@ static void stm32_exti_write(void *opaque, hwaddr offset,
                        uint64_t value, unsigned size)
 {
     Stm32Exti *s = (Stm32Exti *)opaque;
-    int pos, bit_value;
+    int pos, bit_value, old_bit;
 
     assert(size == 4);
     DPRINT("Writing 0x%X to 0x%X\n", (uint32_t)value, (uint32_t)offset);
     if(offset <= EXTI_EMR_OFFSET) {
         switch (offset) {
             case EXTI_IMR_OFFSET:
+                for(pos = 0; pos < EXTI_LINE_COUNT; pos++) {
+                    bit_value = extract32(value, pos, 1);
+                    old_bit = extract32(s->EXTI_IMR, pos, 1);
+                    if(bit_value != old_bit)
+                    {
+                        DPRINT("EXTI output %u %s\n", pos, bit_value ? "Unmasked" : "Masked");
+                    }
+                }
                 s->EXTI_IMR = value;
                 break;
             case EXTI_EMR_OFFSET:
+                DPRINT("EXTI_EMR set to 0x%X\n", (uint32_t)value);
                 /* Do nothing, events are not implemented yet.
                  * But we don't want to throw an error. */
                 break;

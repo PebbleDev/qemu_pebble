@@ -34,6 +34,7 @@
 #include "hw/ssi.h"
 #include "hw/i2c/i2c.h"
 #include "hw/irq.h"
+#include "hw/bt.h"
 
 typedef struct
 {
@@ -75,7 +76,7 @@ static void stm32_pebble_init(QEMUMachineInitArgs *args)
     const char* kernel_filename = args->kernel_filename;
 
     stm32_init(/*flash_size*/512,
-               /*ram_size*/128,
+               /*ram_size*/512,
                kernel_filename,
                16000000,
                32768);
@@ -83,6 +84,7 @@ static void stm32_pebble_init(QEMUMachineInitArgs *args)
     DeviceState *gpio_a = DEVICE(object_resolve_path("/machine/stm32/gpio[a]", NULL));
     DeviceState *gpio_b = DEVICE(object_resolve_path("/machine/stm32/gpio[b]", NULL));
     DeviceState *gpio_c = DEVICE(object_resolve_path("/machine/stm32/gpio[c]", NULL));
+    DeviceState *gpio_h = DEVICE(object_resolve_path("/machine/stm32/gpio[h]", NULL));
     DeviceState *uart1 = DEVICE(object_resolve_path("/machine/stm32/uart[1]", NULL));
     DeviceState *uart3 = DEVICE(object_resolve_path("/machine/stm32/uart[3]", NULL));
     DeviceState *spi1 = DEVICE(object_resolve_path("/machine/stm32/spi[0]", NULL));
@@ -102,10 +104,14 @@ static void stm32_pebble_init(QEMUMachineInitArgs *args)
     stm32_uart_connect(
             (Stm32Uart *)uart3,
             serial_hds[0]);
+
+    CharDriverState *radio = uart_cc256x_hci_init(NULL);
     stm32_uart_connect(
             (Stm32Uart *)uart1,
-            serial_hds[1]);
-
+            radio);
+    qdev_connect_gpio_out(gpio_h, 0, cc256xhci_pins_get(radio)[cc256xhci_pin_nshutdown]);
+    //qdev_connect_gpio_out(uart1, 1, qdev_get_gpio_in(gpio_a, 11));
+    sysbus_connect_irq(SYS_BUS_DEVICE(uart1), 1, qdev_get_gpio_in(gpio_a, 11));
     SysBusDevice *spibusdev = SYS_BUS_DEVICE(spi1);
     SSIBus *spibus = (SSIBus *)qdev_get_child_bus(spi1, "spi");
     assert(spibus);
@@ -154,6 +160,10 @@ static void stm32_pebble_init(QEMUMachineInitArgs *args)
     kbdstate->outputs[1] = qdev_get_gpio_in(gpio_c, 6);
     kbdstate->outputs[2] = qdev_get_gpio_in(gpio_c, 11);
     kbdstate->outputs[3] = qdev_get_gpio_in(gpio_c, 12);*/
+/*    qemu_irq_raise(kbdstate->outputs[0]);
+    qemu_irq_raise(kbdstate->outputs[1]);
+    qemu_irq_raise(kbdstate->outputs[2]);*/
+    if(1)
     qemu_add_kbd_event_handler(stm32_pebble_key_event, kbdstate);
  }
 

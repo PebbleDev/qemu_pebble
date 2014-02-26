@@ -290,12 +290,12 @@ static void stm32_rcc_periph_enable(
     if(new_value & BIT(bit_pos))
     {
         if(!clktree_is_enabled(s->PERIPHCLK[periph]))
-            DPRINT("Enabling periphial\n");
+            DPRINT("Enabling periphial %s\n", stm32_periph_name(periph));
     }
     else
     {
         if(clktree_is_enabled(s->PERIPHCLK[periph]))
-            DPRINT("Disabling periphial\n");
+            DPRINT("Disabling periphial %s\n", stm32_periph_name(periph));
     }
 
     clktree_set_enabled(s->PERIPHCLK[periph], new_value & BIT(bit_pos));

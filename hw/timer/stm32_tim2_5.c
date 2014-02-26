@@ -54,6 +54,10 @@
 #define TIM_SR_UIF_BIT 0
 #define TIM_EGR_OFFSET 0x14
 #define TIM_EGR_UG_BIT 0
+#define TIM_EGR_CC1G_BIT 1
+#define TIM_EGR_CC2G_BIT 2
+#define TIM_EGR_CC3G_BIT 3
+#define TIM_EGR_CC4G_BIT 4
 #define TIM_EGR_TG_BIT 6
 
 #define TIM_CCMR1_OFFSET 0x18
