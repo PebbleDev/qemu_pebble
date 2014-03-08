@@ -45,7 +45,7 @@
 #define CRC_CR_OFFSET 0x8
 #define CRC_CR_RESET_BIT 0
 
-#define POLYNOMIAL 0x04c11db6
+#define POLYNOMIAL 0x04C11DB7
 
 typedef struct Stm32CRC {
     /* Inherited */
@@ -66,8 +66,6 @@ typedef struct Stm32CRC {
 
 static void stm32_crc_CRC_DR_write(Stm32CRC* s, uint32_t value)
 {
-    // Value might be le2be swapping?
-    value = cpu_to_be32(value);
     uint32_t crc = s->CRC_DR ^ value;
     uint32_t i, carry;
     for(i=0; i<32; i++)
