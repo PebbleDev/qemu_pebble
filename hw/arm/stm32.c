@@ -234,6 +234,35 @@ static void stm32_create_timer25_dev(Object *stm32_container,
 
 }
 
+static void stm32_create_dma_dev(
+        Object *stm32_container,
+        stm32_periph_t periph,
+        DeviceState *rcc_dev,
+        hwaddr addr,
+        qemu_irq irq0,
+        qemu_irq irq1,
+        qemu_irq irq2,
+        qemu_irq irq3,
+        qemu_irq irq4,
+        qemu_irq irq5,
+        qemu_irq irq6,
+        qemu_irq irq7)
+{
+    char child_name[8];
+    DeviceState *dma_dev = qdev_create(NULL, "stm32-dma");
+    QDEV_PROP_SET_PERIPH_T(dma_dev, "periph", periph);
+    qdev_prop_set_ptr(dma_dev, "stm32_rcc", rcc_dev);
+    object_property_add_child(stm32_container, child_name, OBJECT(dma_dev), NULL);
+    stm32_init_periph(dma_dev, periph, addr, NULL);
+    sysbus_connect_irq(SYS_BUS_DEVICE(dma_dev), 0, irq0);
+    sysbus_connect_irq(SYS_BUS_DEVICE(dma_dev), 1, irq1);
+    sysbus_connect_irq(SYS_BUS_DEVICE(dma_dev), 2, irq2);
+    sysbus_connect_irq(SYS_BUS_DEVICE(dma_dev), 3, irq3);
+    sysbus_connect_irq(SYS_BUS_DEVICE(dma_dev), 4, irq4);
+    sysbus_connect_irq(SYS_BUS_DEVICE(dma_dev), 5, irq5);
+    sysbus_connect_irq(SYS_BUS_DEVICE(dma_dev), 6, irq6);
+    sysbus_connect_irq(SYS_BUS_DEVICE(dma_dev), 7, irq7);
+}
 
 static uint64_t kernel_load_translate_fn(void *opaque, uint64_t from_addr) {
     if (from_addr == STM32_FLASH_ADDR_START) {
@@ -369,8 +398,27 @@ qemu_irq *stm32_init(
     stm32_create_fake_device(stm32_container, STM32_IWDG, 0x40003000, 0x400);
 
     stm32_create_fake_device(stm32_container, STM32_FLASH, 0x40023C00, 0x400);
-    stm32_create_fake_device(stm32_container, STM32_DMA1, 0x40026000, 0x400);
-    stm32_create_fake_device(stm32_container, STM32_DMA2, 0x40026400, 0x400);
+
+    stm32_create_dma_dev(stm32_container, STM32_DMA1, rcc_dev, 0x40026000,
+                         pic[STM32_DMA1_STREAM0_IRQ],
+                         pic[STM32_DMA1_STREAM1_IRQ],
+                         pic[STM32_DMA1_STREAM2_IRQ],
+                         pic[STM32_DMA1_STREAM3_IRQ],
+                         pic[STM32_DMA1_STREAM4_IRQ],
+                         pic[STM32_DMA1_STREAM5_IRQ],
+                         pic[STM32_DMA1_STREAM6_IRQ],
+                         pic[STM32_DMA1_STREAM7_IRQ]);
+
+    stm32_create_dma_dev(stm32_container, STM32_DMA2, rcc_dev, 0x40026400,
+                         pic[STM32_DMA2_STREAM0_IRQ],
+                         pic[STM32_DMA2_STREAM1_IRQ],
+                         pic[STM32_DMA2_STREAM2_IRQ],
+                         pic[STM32_DMA2_STREAM3_IRQ],
+                         pic[STM32_DMA2_STREAM4_IRQ],
+                         pic[STM32_DMA2_STREAM5_IRQ],
+                         pic[STM32_DMA2_STREAM6_IRQ],
+                         pic[STM32_DMA2_STREAM7_IRQ]);
+
     stm32_create_fake_device(stm32_container, STM32_PWR, 0x40007000, 0x400);
 
     stm32_create_i2c_dev(stm32_container, STM32_I2C1, 0x40005400, pic[STM32_I2C1_EV_IRQ], pic[STM32_I2C1_ER_IRQ]);
