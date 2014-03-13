@@ -76,8 +76,12 @@
 #define ADC_SR_EOC_BIT 1
 
 #define ADC_CR1_OFFSET 0x4
+#define ADC_CR1_RES_START 24
+#define ADC_CR1_RES_LENGTH 2
 #define ADC_CR2_OFFSET 0x8
 #define ADC_CR2_SWSTART_BIT 30
+#define ADC_CR2_ALIGN_BIT 11
+
 #define ADC_SMPR1_OFFSET 0xc
 #define ADC_SQR1_OFFSET 0x2c
 #define ADC_SQR2_OFFSET 0x30
@@ -107,6 +111,8 @@ typedef struct Stm32ADC {
             ADC_CR2,
             ADC_SQR1;
 
+        bool direction;
+        uint8_t resolution;
         uint16_t data;
     } channels[3];
 
@@ -121,6 +127,7 @@ typedef struct Stm32ADC {
 static void stm32_adc_ADC_CR1_write(Stm32ADC *s, struct adc_channel_t *chan, uint32_t reg, uint32_t value)
 {
     chan->ADC_CR1 = value;
+    chan->resolution = extract32(value, ADC_CR1_RES_START, ADC_CR1_RES_LENGTH);
 }
 
 
@@ -131,11 +138,37 @@ static void stm32_adc_ADC_CR2_write(Stm32ADC *s, struct adc_channel_t *chan, uin
         chan->ADC_SR |= BIT(ADC_SR_STRT_BIT) | BIT(ADC_SR_EOC_BIT);
     }
     chan->ADC_CR2 = value & ~BIT(ADC_CR2_SWSTART_BIT);
+
+    chan->direction = extract32(value, ADC_CR2_ALIGN_BIT, 1);
 }
 
 static void stm32_adc_ADC_CCR_write(Stm32ADC *s, uint32_t reg, uint32_t value)
 {
     s->ADC_CCR = value;
+}
+
+static uint16_t STM32_ADC_adc_channel_read_data(Stm32ADC *s, struct adc_channel_t *chan)
+{
+    uint16_t value=0x0;
+    switch(chan->resolution)
+    {
+        case 0x00:
+            // 12 bit
+            if(chan->direction == 0) // Right alignment
+            {
+                value = chan->data & 0xfff;
+            }
+            else
+            {
+                value = chan->data << 4 & 0xFFF0;
+            }
+            break;
+        default:
+            DPRINT("Resolution not supported %d\n", chan->resolution);
+            hw_error("ARG!\n");
+            break;
+    }
+    return value;
 }
 
 static uint32_t stm32_adc_channel_read(Stm32ADC *s, uint32_t channel, uint32_t reg)
@@ -158,7 +191,8 @@ static uint32_t stm32_adc_channel_read(Stm32ADC *s, uint32_t channel, uint32_t r
             break;
         case ADC_DR_OFFSET:
             chan->ADC_SR &= ~BIT(ADC_SR_EOC_BIT);
-            value = chan->data;
+            value = STM32_ADC_adc_channel_read_data(s, chan);
+            break;
         default:
             DPRINT("Reg 0x%X not implemented yet\n", reg);
 //            STM32_NOT_IMPL_REG(reg, 4);
@@ -300,9 +334,9 @@ static const MemoryRegionOps stm32_adc_ops = {
 static void stm32_adc_reset(DeviceState *dev)
 {
     Stm32ADC *s = STM32_ADC_DEVICE(dev);
-    s->channels[0].data = 0xFFFF;
-    s->channels[1].data = 0xFFFF;
-    s->channels[2].data = 0xFFFF;
+    s->channels[0].data = 3300;
+    s->channels[1].data = 2496;
+    s->channels[2].data = 0x7FFF;
 }
 
 
