@@ -158,12 +158,42 @@ static const char* stm32_dma_register_name(uint32_t offset)
 
 #define DMA_TCIE_MASK (1 << 5 | 1  << 11 | 1 << 21 | 1 <<27)
 
+struct lisr_hisr_masks {
+    uint32_t lisr_mask;
+    uint32_t hisr_mask;
+} lisr_hisr_masks[8] = {
+    [0] = { .lisr_mask = 0x3D, .hisr_mask = 0 },
+    [1] = { .lisr_mask = 0x3D << 6, .hisr_mask = 0 },
+    [2] = { .lisr_mask = 0x3D << 16, .hisr_mask = 0 },
+    [3] = { .lisr_mask = 0x3D << 22, .hisr_mask = 0 },
+    [4] = { .lisr_mask = 0, .hisr_mask = 0x3D },
+    [5] = { .lisr_mask = 0, .hisr_mask = 0x3D << 6 },
+    [6] = { .lisr_mask = 0, .hisr_mask = 0x3D << 16 },
+    [7] = { .lisr_mask = 0, .hisr_mask = 0x3D << 22 },
+};
+
 static void stm32_dma_update_irq(stm32_dma_state *s, stm32_dma_stream_state *stream)
 {
-    if(stream->DMA_SxCR_TCIE/* && (s->DMA_LISR & DMA_TCIE_MASK || s->DMA_HISR & DMA_TCIE_MASK)*/)
+    uint32_t lisr_mask = lisr_hisr_masks[stream->num].lisr_mask;
+    uint32_t hisr_mask = lisr_hisr_masks[stream->num].hisr_mask;
+
+    if(stream->DMA_SxCR_TCIE && ((s->DMA_LISR & lisr_mask) || (s->DMA_HISR & hisr_mask)))
     {
         DPRINT("Raising IRQ for stream %d\n", stream->num);
         qemu_irq_raise(stream->irq);
+    }
+    else {
+        DPRINT("Lowering IRQ for stream %d\n", stream->num);
+        qemu_irq_lower(stream->irq);
+    }
+}
+
+static void stm32_dma_update_all_irqs(stm32_dma_state *s) {
+    int i;
+
+    for (i = 0; i < 8; i++) {
+        stm32_dma_stream_state *stream = &s->stream[i];
+        stm32_dma_update_irq(s, stream);
     }
 }
 
@@ -389,9 +419,13 @@ static void stm32_dma_write(void *opaque, hwaddr addr,
             break;
         case DMA_LIFCR_OFFSET:
             s->DMA_LISR &= ~(value & 0xF7D0F7D);
+            DPRINT("Setting LIFCR with value %08X\n", (uint32_t)value);
+            stm32_dma_update_all_irqs(s);
             break;
         case DMA_HIFCR_OFFSET:
             s->DMA_HISR &= ~(value & 0xF7D0F7D);
+            DPRINT("Setting HIFCR with value %08X\n", (uint32_t)value);
+            stm32_dma_update_all_irqs(s);
             break;
         case 0x10 ... 0xCC:
             stm32_dma_stream_write(s, addr, value);
