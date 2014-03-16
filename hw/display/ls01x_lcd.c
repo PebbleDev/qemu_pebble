@@ -173,7 +173,7 @@ static void ls01x_lcd_update_display(void *opaque)
         }
     }
     s->redraw = 0;
-    dpy_gfx_update(s->con, 0, 0, s->height, s->width);
+    dpy_gfx_update(s->con, 0, 0, s->width, s->height);
 }
 
 static void ls01x_lcd_invalidate_display(void * opaque)
