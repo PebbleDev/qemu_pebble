@@ -334,9 +334,9 @@ static const MemoryRegionOps stm32_adc_ops = {
 static void stm32_adc_reset(DeviceState *dev)
 {
     Stm32ADC *s = STM32_ADC_DEVICE(dev);
-    s->channels[0].data = 3300;
-    s->channels[1].data = 2496;
-    s->channels[2].data = 0x7FFF;
+    s->channels[0].data = 0xFFFF;
+    s->channels[1].data = 0xFFFF;
+    s->channels[2].data = 0xFFFF;
 }
 
 
