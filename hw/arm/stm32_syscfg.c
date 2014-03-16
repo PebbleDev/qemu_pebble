@@ -86,12 +86,13 @@ static void stm32_syscfg_SYSCFG_EXTICR_write(Stm32Syscfg *s, uint32_t regnum,
         {
             qemu_irq irq = qdev_get_gpio_in(s->exti_dev, curr_exti);
             DPRINT("Connecting EXTI GPIO%c to Pin %u\n", 'A' + tmpval, curr_exti);
-            qdev_connect_gpio_out(s->gpio_dev[tmpval], curr_exti, irq);
             if(tmpval != old_gpio)
             {
                 DPRINT("Disonnecting EXTI GPIO%c to Pin %u\n", 'A' + old_gpio, curr_exti);
-                qdev_connect_gpio_out(s->gpio_dev[old_gpio], curr_exti, NULL);
+                sysbus_connect_irq(SYS_BUS_DEVICE(s->gpio_dev[old_gpio]), curr_exti, NULL);
             }
+
+            sysbus_connect_irq(SYS_BUS_DEVICE(s->gpio_dev[tmpval]), curr_exti, irq);
         }
     }
     s->exti[regnum] = value;
@@ -158,10 +159,10 @@ static void stm32_syscfg_reset(DeviceState *dev)
 {
     Stm32Syscfg *s = STM32_SYSCFG_DEVICE(dev);
     memset(s->exti, 0, sizeof(s->exti));
-/*    stm32_syscfg_SYSCFG_EXTICR_write(s, 0, 0x0, true);
+    stm32_syscfg_SYSCFG_EXTICR_write(s, 0, 0x0, true);
     stm32_syscfg_SYSCFG_EXTICR_write(s, 1, 0x0, true);
     stm32_syscfg_SYSCFG_EXTICR_write(s, 2, 0x0, true);
-    stm32_syscfg_SYSCFG_EXTICR_write(s, 3, 0x0, true);*/
+    stm32_syscfg_SYSCFG_EXTICR_write(s, 3, 0x0, true);
 
 }
 
