@@ -42,33 +42,46 @@ typedef struct
     bool prev_state[4];
 } KbdState;
 
-static void stm32_pebble_key_event(void *opaque, int keycode)
+static void stm32_pebble_button_event(void *opaque, int idx, bool up)
 {
     KbdState *s = (KbdState*)opaque;
     qemu_irq irq;
+    irq = s->outputs[idx];
+    if(s->prev_state[idx] == up)
+        return;
+    if(up)
+        qemu_set_irq(irq, 0);
+    else
+        qemu_set_irq(irq, 1);
+    s->prev_state[idx] = up;
+}
+
+static void stm32_pebble_key_event(void *opaque, int keycode)
+{
+    bool up = !!(keycode & SCANCODE_UP);
+    int idx;
     switch(keycode & SCANCODE_KEYCODEMASK)
     {
-        case 2:
-        case 3:
-        case 4:
-        case 5:
-        {
-            uint8_t idx = (keycode & SCANCODE_KEYCODEMASK) - 2;
-            irq = s->outputs[idx];
-            bool up = !!(keycode & SCANCODE_UP);
-            if(s->prev_state[idx] == up)
-                break;
-            if(up)
-                qemu_set_irq(irq, 0);
-            else
-                qemu_set_irq(irq, 1);
-            s->prev_state[idx] = up;
-        }
-             break;
+        case 0x4B: // left
+            idx = 0;
+            break;
+        case 0x48: // up
+            idx = 1;
+            break;
+        case 0x4D: // right
+            idx = 2;
+            break;
+        case 0x50: // down
+            idx = 3;
+            break;
+        case 0x60:
+            return;
         default:
             printf("Pebble: Unknown key pressed %c (0x%X)\n", keycode & SCANCODE_KEYCODEMASK, keycode );
-            break;
+            return;
     }
+
+    stm32_pebble_button_event(opaque, idx, up);
 }
 
 static void stm32_pebble_init(QEMUMachineInitArgs *args)
