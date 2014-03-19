@@ -374,6 +374,8 @@ qemu_irq *stm32_init(
 
     DeviceState *rtc_dev = qdev_create(NULL, "stm32-rtc");
     object_property_add_child(stm32_container, "rtc", OBJECT(rtc_dev), NULL);
+    qdev_prop_set_ptr(rtc_dev, "stm32_rcc", rcc_dev);
+    QDEV_PROP_SET_PERIPH_T(rtc_dev, "periph", STM32_RTC);
     stm32_init_periph(rtc_dev, STM32_RTC, 0x40002800, 0);
     sysbus_connect_irq(SYS_BUS_DEVICE(rtc_dev), 0, pic[STM32_RTCAlarm_IRQ]);
     sysbus_connect_irq(SYS_BUS_DEVICE(rtc_dev), 1, pic[STM32_RTC_WKUP_IRQ]);

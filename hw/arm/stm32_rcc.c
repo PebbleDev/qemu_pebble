@@ -1020,6 +1020,8 @@ static void stm32_rcc_init_clk(Stm32Rcc *s)
     s->PERIPHCLK[STM32_I2C2] = clktree_create_clk("I2C2", 1, 1, false, CLKTREE_NO_MAX_FREQ, 0, s->PCLK1, NULL);
     s->PERIPHCLK[STM32_I2C3] = clktree_create_clk("I2C3", 1, 1, false, CLKTREE_NO_MAX_FREQ, 0, s->PCLK1, NULL);
 
+    s->PERIPHCLK[STM32_RTC] = clktree_create_clk("RTC", 1, 1, true, CLKTREE_NO_MAX_FREQ, 0, s->RTCCLK, NULL);
+
     s->PERIPHCLK[STM32_TIM1] = clktree_create_clk("TIM1", 1, 1, true, CLKTREE_NO_MAX_FREQ, 0, s->PCLK2, NULL);
     s->PERIPHCLK[STM32_TIM2] = clktree_create_clk("TIM2", 1, 1, true, CLKTREE_NO_MAX_FREQ, 0, s->PCLK1, NULL);
     s->PERIPHCLK[STM32_TIM3] = clktree_create_clk("TIM3", 1, 1, true, CLKTREE_NO_MAX_FREQ, 0, s->PCLK1, NULL);

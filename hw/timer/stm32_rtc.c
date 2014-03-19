@@ -125,9 +125,14 @@
 #define RTC_ISR_TAMP1F_BIT 13
 
 #define RTC_PRER_OFFSET      0x10
+#define RTC_PRER_PREDIV_A_START 16
+#define RTC_PRER_PREDIV_A_LENGTH 7
+#define RTC_PRER_PREDIV_S_START 0
+#define RTC_PRER_PREDIV_S_LENGTH 13
+
 #define RTC_WUTR_OFFSET      0x14
 #define RTC_CALIBR_OFFSET    0x18
-#define RTC_ALMAR_OFFSET    0x1c
+#define RTC_ALRMAR_OFFSET    0x1c
 #define RTC_ALRMBR_OFFSET          0x20
 #define RTC_WPR_OFFSET         0x24
 #define RTC_TSTR_OFFSET            0x30
@@ -135,20 +140,6 @@
 #define RTC_TAFCR_OFFSET           0x40
 #define RTC_BKP0R_OFFSET           0x50
 #define RTC_BKP19R_OFFSET          0x9c
-
-
-#define     TICK_TIMER_ENABLE   0x0100
-#define     TICNT_THRESHHOLD    2
-
-
-#define     RTC_ENABLE          0x0001
-
-#define     INTP_TICK_ENABLE    0x0001
-#define     INTP_ALM_ENABLE     0x0002
-
-#define     ALARM_INT_ENABLE    0x0040
-
-#define     RTC_BASE_FREQ       32768
 
 
 typedef enum
@@ -163,6 +154,8 @@ typedef struct STM32RTCState {
     SysBusDevice busdev;
     MemoryRegion iomem;
     stm32_periph_t periph;
+    void *stm32_rcc_prop;
+    Stm32Rcc *stm32_rcc;
 
     stm32_rtc_states state;
 
@@ -170,40 +163,27 @@ typedef struct STM32RTCState {
     uint32_t
         RTC_TR,
         RTC_DR,
-        RTC_CR,
-        RTC_PRER;
+        RTC_CR;
 
 
     /* register fields */
     uint32_t
         RTC_ISR_INIT,
-        RTC_ISR_RSF;
+        RTC_ISR_RSF,
+        RTC_PREDIV_A,
+        RTC_PREDIV_S;
 
-    uint32_t    reg_intp;
-    uint32_t    reg_rtccon;
-    uint32_t    reg_ticcnt;
-    uint32_t    reg_rtcalm;
-    uint32_t    reg_almsec;
-    uint32_t    reg_almmin;
-    uint32_t    reg_almhour;
-    uint32_t    reg_almday;
-    uint32_t    reg_almmon;
-    uint32_t    reg_almyear;
-    uint32_t    reg_curticcnt;
-    uint32_t    reg_bkp[0x4d];
+    uint32_t reg_bkp[0x4d];
 
-    ptimer_state    *ptimer;        /* tick timer */
     ptimer_state    *ptimer_1Hz;    /* clock timer */
     uint32_t        freq;
 
     qemu_irq        alarm_irq; /* RTCAlarm IRQ */
     qemu_irq        wkup_irq;   /* RTC Wakeup IRQ */
     qemu_irq        tamp_stamp_irq;    /* RTC Tamp Stamp IRQ */
-
     struct tm   current_tm;     /* current time */
 } STM32RTCState;
 
-#define TICCKSEL(value) ((value & (0x0F << 4)) >> 4)
 
 /*** VMState ***/
 static const VMStateDescription vmstate_stm32_rtc_state = {
@@ -212,18 +192,6 @@ static const VMStateDescription vmstate_stm32_rtc_state = {
     .minimum_version_id = 1,
     .minimum_version_id_old = 1,
     .fields = (VMStateField[]) {
-        VMSTATE_UINT32(reg_intp, STM32RTCState),
-        VMSTATE_UINT32(reg_rtccon, STM32RTCState),
-        VMSTATE_UINT32(reg_ticcnt, STM32RTCState),
-        VMSTATE_UINT32(reg_rtcalm, STM32RTCState),
-        VMSTATE_UINT32(reg_almsec, STM32RTCState),
-        VMSTATE_UINT32(reg_almmin, STM32RTCState),
-        VMSTATE_UINT32(reg_almhour, STM32RTCState),
-        VMSTATE_UINT32(reg_almday, STM32RTCState),
-        VMSTATE_UINT32(reg_almmon, STM32RTCState),
-        VMSTATE_UINT32(reg_almyear, STM32RTCState),
-        VMSTATE_UINT32(reg_curticcnt, STM32RTCState),
-        VMSTATE_PTIMER(ptimer, STM32RTCState),
         VMSTATE_PTIMER(ptimer_1Hz, STM32RTCState),
         VMSTATE_UINT32(freq, STM32RTCState),
         VMSTATE_INT32(current_tm.tm_sec, STM32RTCState),
@@ -237,9 +205,6 @@ static const VMStateDescription vmstate_stm32_rtc_state = {
     }
 };
 
-#define BCD3DIGITS(x) \
-    ((uint32_t)to_bcd((uint8_t)(x % 100)) + \
-    ((uint32_t)to_bcd((uint8_t)((x % 1000) / 100)) << 8))
 
 /*static void check_alarm_raise(STM32RTCState *s)
 {
@@ -281,20 +246,16 @@ static const VMStateDescription vmstate_stm32_rtc_state = {
 
 /*
  * RTC update frequency
- * Parameters:
- *     reg_value - current RTCCON register or his new value
  */
-static void stm32_rtc_update_freq(STM32RTCState *s,
-                                       uint32_t reg_value)
+static void stm32_rtc_update_freq(STM32RTCState *s)
 {
-    uint32_t freq;
-
-    freq = s->freq;
-    /* set frequncy for time generator */
-    s->freq = RTC_BASE_FREQ / (1 << TICCKSEL(reg_value));
-
+    uint32_t freq = s->freq;
+    uint32_t in_freq = 32768; // stm32_rcc_get_periph_freq(s->stm32_rcc, s->periph);
+    s->freq = (in_freq / s->RTC_PREDIV_A) / s->RTC_PREDIV_S;
+    DPRINT("freq=%dHz, oldfreq=%dHz\n", s->freq, freq);
+    
     if (freq != s->freq) {
-        ptimer_set_freq(s->ptimer, s->freq);
+        ptimer_set_freq(s->ptimer_1Hz, s->freq);
         DPRINT("freq=%dHz\n", s->freq);
     }
 }
@@ -355,23 +316,6 @@ static void rtc_next_second(struct tm *tm)
     }
 }
 
-/*
- * tick handler
- */
-static void stm32_rtc_tick(void *opaque)
-{
-    STM32RTCState *s = (STM32RTCState *)opaque;
-
-    DPRINT("TICK IRQ\n");
-    /* set irq status */
-//    s->reg_intp |= INTP_TICK_ENABLE;
-    /* raise IRQ */
-//    qemu_irq_raise(s->tick_irq);
-
-    /* restart timer */
-    ptimer_set_count(s->ptimer, s->reg_ticcnt);
-    ptimer_run(s->ptimer, 1);
-}
 
 /*
  * 1Hz clock handler
@@ -388,7 +332,7 @@ static void stm32_rtc_1Hz_tick(void *opaque)
         check_alarm_raise(s);
     }*/
 
-    ptimer_set_count(s->ptimer_1Hz, RTC_BASE_FREQ);
+    ptimer_set_count(s->ptimer_1Hz, 1); // TODO: Should this really be 1?
     ptimer_run(s->ptimer_1Hz, 1);
 }
 
@@ -417,7 +361,7 @@ static uint64_t stm32_rtc_read(void *opaque, hwaddr offset,
             break;
         case RTC_WUTR_OFFSET:
         case RTC_CALIBR_OFFSET:
-        case RTC_ALMAR_OFFSET:
+        case RTC_ALRMAR_OFFSET:
         case RTC_ALRMBR_OFFSET:
         case RTC_WPR_OFFSET:
         case RTC_TSTR_OFFSET:
@@ -430,7 +374,7 @@ static uint64_t stm32_rtc_read(void *opaque, hwaddr offset,
             value = 0;
             break;
         case RTC_PRER_OFFSET:
-            value = s->RTC_PRER;
+            value = s->RTC_PREDIV_A << RTC_PRER_PREDIV_A_START | s->RTC_PREDIV_S << RTC_PRER_PREDIV_S_START;
             DPRINT("Read from 0x%x, value 0x%x\n", (uint32_t)offset, (uint32_t)value);
             break;
         case RTC_CR_OFFSET:
@@ -496,7 +440,8 @@ static void stm32_rtc_write(void *opaque, hwaddr offset,
             else if(!(value & BIT(RTC_ISR_INIT_BIT)) && old_value == 1)
             {
                 DPRINT("Exiting init mode\n");
-                ptimer_set_count(s->ptimer_1Hz, RTC_BASE_FREQ);
+                ptimer_set_count(s->ptimer_1Hz, 1);
+                stm32_rtc_update_freq(s);
                 ptimer_run(s->ptimer_1Hz, 1);
             }
             if(!(value & BIT(RTC_ISR_RSF_BIT)))
@@ -507,7 +452,8 @@ static void stm32_rtc_write(void *opaque, hwaddr offset,
             break;
         case RTC_PRER_OFFSET:
             assert(s->state == RTC_UNLOCKED);
-            s->RTC_PRER = value;
+            s->RTC_PREDIV_A = extract32(value, RTC_PRER_PREDIV_A_START, RTC_PRER_PREDIV_A_LENGTH);
+            s->RTC_PREDIV_S = extract32(value, RTC_PRER_PREDIV_S_START, RTC_PRER_PREDIV_S_LENGTH);
             break;
         case RTC_WUTR_OFFSET:
             assert(s->state == RTC_UNLOCKED);
@@ -517,13 +463,10 @@ static void stm32_rtc_write(void *opaque, hwaddr offset,
             assert(s->state == RTC_UNLOCKED);
             STM32_NOT_IMPL_REG(offset, size);
             break;
-        case RTC_ALMAR_OFFSET:
-            assert(s->state == RTC_UNLOCKED);
-            STM32_NOT_IMPL_REG(offset, size);
-            break;
+        // For now, just ignore alarms
+        case RTC_ALRMAR_OFFSET:
         case RTC_ALRMBR_OFFSET:
             assert(s->state == RTC_UNLOCKED);
-            STM32_NOT_IMPL_REG(offset, size);
             break;
         case RTC_WPR_OFFSET:
             switch(s->state)
@@ -594,28 +537,11 @@ static void stm32_rtc_reset(DeviceState *d)
                 to_bcd((uint8_t)s->current_tm.tm_min) << RTC_TR_MNU_START |
                 to_bcd((uint8_t)s->current_tm.tm_sec) << RTC_TR_SU_START;
 
-    s->reg_intp = 0;
-    s->reg_rtccon = 0;
-    s->reg_ticcnt = 0;
-    s->reg_rtcalm = 0;
-    s->reg_almsec = 0;
-    s->reg_almmin = 0;
-    s->reg_almhour = 0;
-    s->reg_almday = 0;
-    s->reg_almmon = 0;
-    s->reg_almyear = 0;
-
-    s->reg_curticcnt = 0;
-
  //   s->RTC_ISR |= 0x00000020;
     s->RTC_ISR_RSF = 1;
     s->RTC_CR = 0x00000000;
-    s->RTC_PRER = 0x007f00ff;
-
-//    stm32_rtc_update_freq(s, );
-//    ptimer_stop(s->ptimer);
-/*    ptimer_set_count(s->ptimer_1Hz, RTC_BASE_FREQ);
-    ptimer_run(s->ptimer_1Hz, 1);*/
+    s->RTC_PREDIV_A = 0x7f;
+    s->RTC_PREDIV_S = 0xff;
 }
 
 static const MemoryRegionOps stm32_rtc_ops = {
@@ -635,16 +561,12 @@ static int stm32_rtc_init(SysBusDevice *sbd)
 {
     DeviceState *dev = DEVICE(sbd);
     STM32RTCState *s = STM32_RTC_DEVICE(dev);
-    QEMUBH *bh;
+    s->stm32_rcc = (Stm32Rcc *)s->stm32_rcc_prop;
 
-    bh = qemu_bh_new(stm32_rtc_tick, s);
-    s->ptimer = ptimer_init(bh);
-    ptimer_set_freq(s->ptimer, RTC_BASE_FREQ);
-    stm32_rtc_update_freq(s, 0);
+    QEMUBH *bh;
 
     bh = qemu_bh_new(stm32_rtc_1Hz_tick, s);
     s->ptimer_1Hz = ptimer_init(bh);
-    ptimer_set_freq(s->ptimer_1Hz, RTC_BASE_FREQ);
 
     sysbus_init_irq(sbd, &s->alarm_irq);
     sysbus_init_irq(sbd, &s->wkup_irq);
@@ -653,9 +575,15 @@ static int stm32_rtc_init(SysBusDevice *sbd)
     memory_region_init_io(&s->iomem, NULL, &stm32_rtc_ops, s, "stm32-rtc",
             STM32_RTC_REG_MEM_SIZE);
     sysbus_init_mmio(sbd, &s->iomem);
-    s->periph = STM32_RTC;
     return 0;
 }
+
+static Property stm32_rtc_properties[] = {
+    DEFINE_PROP_PERIPH_T("periph", STM32RTCState, periph, STM32_PERIPH_UNDEFINED),
+    DEFINE_PROP_PTR("stm32_rcc", STM32RTCState, stm32_rcc_prop),
+    DEFINE_PROP_END_OF_LIST()
+};
+
 
 static void stm32_rtc_class_init(ObjectClass *klass, void *data)
 {
@@ -665,6 +593,7 @@ static void stm32_rtc_class_init(ObjectClass *klass, void *data)
     k->init = stm32_rtc_init;
     dc->reset = stm32_rtc_reset;
     dc->vmsd = &vmstate_stm32_rtc_state;
+    dc->props = stm32_rtc_properties;
 }
 
 static const TypeInfo stm32_rtc_info = {
