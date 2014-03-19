@@ -97,7 +97,6 @@ static void stm32_pebble_init(QEMUMachineInitArgs *args)
     DeviceState *gpio_a = DEVICE(object_resolve_path("/machine/stm32/gpio[a]", NULL));
     DeviceState *gpio_b = DEVICE(object_resolve_path("/machine/stm32/gpio[b]", NULL));
     DeviceState *gpio_c = DEVICE(object_resolve_path("/machine/stm32/gpio[c]", NULL));
-    DeviceState *gpio_h = DEVICE(object_resolve_path("/machine/stm32/gpio[h]", NULL));
     DeviceState *uart1 = DEVICE(object_resolve_path("/machine/stm32/uart[1]", NULL));
     DeviceState *uart3 = DEVICE(object_resolve_path("/machine/stm32/uart[3]", NULL));
     DeviceState *spi1 = DEVICE(object_resolve_path("/machine/stm32/spi[0]", NULL));
@@ -122,7 +121,7 @@ static void stm32_pebble_init(QEMUMachineInitArgs *args)
     stm32_uart_connect(
             (Stm32Uart *)uart1,
             radio);
-    qdev_connect_gpio_out(gpio_h, 0, cc256xhci_pins_get(radio)[cc256xhci_pin_nshutdown]);
+    qdev_connect_gpio_out(gpio_a, 3, cc256xhci_pins_get(radio)[cc256xhci_pin_nshutdown]);
     //qdev_connect_gpio_out(uart1, 1, qdev_get_gpio_in(gpio_a, 11));
     sysbus_connect_irq(SYS_BUS_DEVICE(uart1), 1, qdev_get_gpio_in(gpio_a, 11));
     SysBusDevice *spibusdev = SYS_BUS_DEVICE(spi1);
